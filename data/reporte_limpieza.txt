@@ -1,0 +1,17 @@
+
+======================================================================
+REPORTE DE LIMPIEZA DE DATOS
+======================================================================
+
+Dataset 1 (Siniestros Viales):
+  Registros iniciales: 2,834
+  Registros finales:   2,780
+  Registros eliminados: 54
+  % Retenido:          98.1%
+
+Dataset 2 (Gravedad/Víctimas):
+  Registros iniciales: 1,609
+  Registros finales:   1,585
+  Registros eliminados: 24
+  % Retenido:          98.5%
+

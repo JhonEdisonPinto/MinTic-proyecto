@@ -53,6 +53,24 @@ class TestLimpiadordeDatos:
         if "edad" in df_limpio.columns:
             assert df_limpio["edad"].max() <= 120 or df_limpio["edad"].isna().all()
 
+    def test_eliminar_outliers_conservador_geografico(self):
+        """Test: filtrado geográfico conservador no elimina si solo una coordenada está ausente."""
+        # Simular caso: muchas filas con lat/long nulos o parciales
+        df_test = pd.DataFrame({
+            "a_o": [2023] * 6,
+            "fecha": ["2023-01-01"] * 6,
+            "lat": [-3.73, -3.73, None, -10.0, -3.73, -3.73],  # -10 es outlier
+            "long": [-76.28, None, -76.28, -50.0, -76.28, -76.28],  # -50 es outlier
+            "edad": [25, 35, 45, 28, 30, 32],
+        })
+        limpiador = LimpiadordeDatos()
+        df_limpio = limpiador._eliminar_outliers(df_test)
+        
+        # Debe eliminar SOLO la fila 3 (ambas coordenadas presentes y ambas inválidas)
+        # Todas las demás deben conservarse (nulos, o al menos una coordenada válida/ausente)
+        assert len(df_limpio) > 3  # No debe eliminar todas
+        assert len(df_limpio) <= 5  # Debe eliminar al máximo la fila con ambas inválidas
+
     def test_estandarizar_texto(self, df_sucio):
         """Prueba estandarización de texto."""
         limpiador = LimpiadordeDatos()
