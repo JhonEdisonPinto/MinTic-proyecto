@@ -18,7 +18,7 @@ Proyecto colaborativo (equipo 3-4 personas) para analizar datasets abiertos del 
 - Jupyter (exploración y análisis)
 
 **Objetivos:**
-- Procesar 50,000+ registros de datos.gov.co
+- Procesar 2000+ registros de datos.gov.co
 - Trabajo colaborativo con Git
 - Deploy automatizado (Streamlit Cloud / Render)
 
