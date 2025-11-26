@@ -7,7 +7,7 @@ Este sistema procesa datos abiertos de siniestros viales en Palmira desde **dato
 ## 🎯 Objectivos
 
 1. ✅ Descargar datos de dos APIs públicas de datos.gov.co
-2. ✅ Limpiar y validar datos (50,000+ registros)
+2. ✅ Limpiar y validar datos (2000+ registros)
 3. ✅ Ingeniería de características para predicción
 4. ✅ Entrenar modelos de ML (Random Forest, etc.)
 5. ✅ Integración con LangChain para RAG (Retrieval-Augmented Generation)
@@ -84,7 +84,7 @@ jupyter notebook notebooks/03_multiagente_langchain.ipynb
 ### Dataset 2: Siniestros - Gravedad y Víctimas
 - **URL**: `https://www.datos.gov.co/resource/xx6f-f84h.json`
 - **Columnas**: gravedad, fecha, a_o, hora, jornada, dia_semana, barrios, dirección, zona, autoridad, lat, long, condición_víctima, clase_siniestro, género, lesionado, homicidios, clínica, clase_vehículo, marca, tipo_servicio, empresa
-- **Registros**: ~50,000+
+- **Registros**: ~2000+
 
 ## 🧹 Proceso de Limpieza de Datos
 

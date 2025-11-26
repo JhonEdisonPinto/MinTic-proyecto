@@ -84,7 +84,7 @@
 
 **Descarga de Datos:**
 - ✅ 2 APIs públicas de datos.gov.co
-- ✅ Soporte para 50,000+ registros
+- ✅ Soporte para 2000+ registros
 - ✅ Manejo de errores y timeouts
 - ✅ Logging detallado
 

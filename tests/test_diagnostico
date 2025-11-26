@@ -1,0 +1,208 @@
+"""Script de diagnóstico y configuración para Gemini API con LangChain"""
+
+import os
+import sys
+from pathlib import Path
+
+
+def diagnosticar_entorno():
+    """Diagnostica el entorno y configuración actual"""
+    print("🔍 DIAGNÓSTICO DEL ENTORNO")
+    print("=" * 60)
+    
+    # 1. Verificar Python
+    print(f"\n1. Python: {sys.version}")
+    
+    # 2. Verificar ubicación
+    print(f"\n2. Directorio actual: {Path.cwd()}")
+    
+    # 3. Verificar archivo .env
+    env_path = Path(".env")
+    print(f"\n3. Archivo .env: {'✓ Existe' if env_path.exists() else '❌ No encontrado'}")
+    
+    if env_path.exists():
+        # Leer sin mostrar el valor completo
+        with open(env_path, 'r') as f:
+            content = f.read()
+            if "GEMINI_API_KEY" in content:
+                print("   ✓ GEMINI_API_KEY encontrada en .env")
+            else:
+                print("   ❌ GEMINI_API_KEY no encontrada en .env")
+    
+    # 4. Verificar variable de entorno
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    print(f"\n4. Variable GEMINI_API_KEY cargada: {'✓ Sí' if gemini_key else '❌ No'}")
+    if gemini_key:
+        print(f"   Longitud: {len(gemini_key)} caracteres")
+        print(f"   Primeros 10 chars: {gemini_key[:10]}...")
+    
+    # 5. Verificar dependencias
+    print("\n5. Dependencias:")
+    
+    dependencias = {
+        "langchain": "langchain",
+        "langchain-google-genai": "langchain_google_genai",
+        "google-generativeai": "google.generativeai",
+        "python-dotenv": "dotenv",
+    }
+    
+    for nombre, modulo in dependencias.items():
+        try:
+            __import__(modulo)
+            print(f"   ✓ {nombre}")
+        except ImportError:
+            print(f"   ❌ {nombre} - Instalar con: pip install {nombre}")
+    
+    print("\n" + "=" * 60)
+
+
+def probar_gemini_directo():
+    """Prueba directa con google-generativeai (sin LangChain)"""
+    print("\n🧪 PRUEBA DIRECTA DE GEMINI API")
+    print("=" * 60)
+    
+    try:
+        import google.generativeai as genai
+        
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        if not api_key:
+            print("❌ GEMINI_API_KEY no configurada")
+            return False
+        
+        # Configurar
+        genai.configure(api_key=api_key)
+        
+        # Crear modelo
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        
+        # Prueba simple
+        print("\nEnviando mensaje de prueba...")
+        response = model.generate_content("Di 'Hola desde Gemini'")
+        
+        print("✓ Respuesta recibida:")
+        print(f"  {response.text}")
+        return True
+        
+    except ImportError:
+        print("❌ google-generativeai no instalado")
+        print("   Instalar con: pip install google-generativeai")
+        return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+
+def probar_langchain_gemini():
+    """Prueba con LangChain"""
+    print("\n🔗 PRUEBA CON LANGCHAIN")
+    print("=" * 60)
+    
+    try:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        if not api_key:
+            print("❌ GEMINI_API_KEY no configurada")
+            return False
+        
+        print("\nCreando LLM con LangChain...")
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=api_key,
+            temperature=0.7,
+            convert_system_message_to_human=True,
+        )
+        
+        print("✓ LLM creado")
+        
+        print("\nEnviando mensaje de prueba...")
+        response = llm.invoke("Di 'Hola desde LangChain + Gemini'")
+        
+        print("✓ Respuesta recibida:")
+        print(f"  {response.content}")
+        return True
+        
+    except ImportError as e:
+        print(f"❌ Dependencia faltante: {e}")
+        print("   Instalar con: pip install langchain-google-genai")
+        return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+
+def crear_ejemplo_env():
+    """Crea un archivo .env.example"""
+    example_path = Path(".env.example")
+    
+    content = """# Configuración de API Keys para el proyecto MinTIC
+
+# Gemini API Key (Google AI Studio)
+# Obtén tu key en: https://makersuite.google.com/app/apikey
+GEMINI_API_KEY=tu-api-key-aqui
+
+# Opcional: OpenAI (si decides usarlo en el futuro)
+# OPENAI_API_KEY=tu-openai-key-aqui
+"""
+    
+    with open(example_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    print(f"\n✓ Archivo .env.example creado")
+    print("  Cópialo a .env y agrega tu API key real")
+
+
+def main():
+    """Ejecuta el diagnóstico completo"""
+    print("\n" + "🚀 DIAGNÓSTICO Y CONFIGURACIÓN GEMINI API" + "\n")
+    
+    # Cargar variables de entorno
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        print("✓ Variables de entorno cargadas desde .env\n")
+    except ImportError:
+        print("⚠️  python-dotenv no instalado (pip install python-dotenv)\n")
+    
+    # Diagnóstico
+    diagnosticar_entorno()
+    
+    # Crear ejemplo si no existe .env
+    if not Path(".env").exists():
+        print("\n📝 CREANDO ARCHIVO DE EJEMPLO")
+        print("=" * 60)
+        crear_ejemplo_env()
+    
+    # Pruebas
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if api_key:
+        # Prueba directa
+        exito_directo = probar_gemini_directo()
+        
+        # Prueba con LangChain
+        exito_langchain = probar_langchain_gemini()
+        
+        # Resumen
+        print("\n📊 RESUMEN")
+        print("=" * 60)
+        print(f"Gemini API directo: {'✓ Funciona' if exito_directo else '❌ Falla'}")
+        print(f"LangChain + Gemini: {'✓ Funciona' if exito_langchain else '❌ Falla'}")
+        
+        if exito_directo and exito_langchain:
+            print("\n🎉 ¡Todo configurado correctamente!")
+        else:
+            print("\n⚠️  Revisa los errores arriba")
+    else:
+        print("\n⚠️  CONFIGURACIÓN PENDIENTE")
+        print("=" * 60)
+        print("\nPasos para configurar:")
+        print("1. Ve a: https://makersuite.google.com/app/apikey")
+        print("2. Crea o selecciona un proyecto")
+        print("3. Genera una API key")
+        print("4. Copia el archivo .env.example a .env")
+        print("5. Reemplaza 'tu-api-key-aqui' con tu key real")
+        print("6. Ejecuta este script de nuevo")
+
+
+if __name__ == "__main__":
+    main()
