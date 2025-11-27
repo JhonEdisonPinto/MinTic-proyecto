@@ -14,37 +14,41 @@ import io
 logger = logging.getLogger(__name__)
 
 
-def _leer_documento(path: str) -> str:
-    """Leer documento sencillo: soporta .txt y .pdf (si está instalado PyPDF2).
+# ============================================================================
+# FUNCIONES RAG CORREGIDAS
+# ============================================================================
 
-    Devuelve el texto combinado.
-    """
+def _leer_documento(path: str) -> str:
+    """Leer documento: soporta .txt, .md y .pdf"""
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"Documento no encontrado: {path}")
 
     suffix = p.suffix.lower()
+    
     if suffix in {".txt", ".md"}:
         return p.read_text(encoding="utf-8")
 
     if suffix == ".pdf":
         try:
             from PyPDF2 import PdfReader
-
             reader = PdfReader(str(p))
             pages = []
             for page in reader.pages:
-                pages.append(page.extract_text() or "")
-            return "\n\n".join(pages)
+                text = page.extract_text() or ""
+                if text.strip():
+                    pages.append(text)
+            resultado = "\n\n".join(pages)
+            logger.info(f"PDF leído: {len(pages)} páginas, {len(resultado)} caracteres")
+            return resultado
         except Exception as e:
-            logger.error("No se pudo leer PDF (PyPDF2 requerido): %s", e)
+            logger.error(f"Error leyendo PDF: {e}")
             raise
 
-    # Intentar leer con text-mode por defecto
     try:
         return p.read_text(encoding="utf-8")
     except Exception:
-        raise ValueError(f"Formato de documento no soportado: {suffix}")
+        raise ValueError(f"Formato no soportado: {suffix}")
 
 
 def index_document_to_faiss(
@@ -55,213 +59,235 @@ def index_document_to_faiss(
     chunk_overlap: int = 200,
     embedding_model: Optional[str] = None,
 ) -> Any:
-    """Indexa un documento en FAISS usando LangChain.
-
-    Args:
-        doc_path: Ruta al documento (txt o pdf)
-        index_dir: Carpeta donde guardar el índice FAISS
-        config: LangChainConfig para seleccionar proveedor de embeddings/LLM
-        chunk_size/chunk_overlap: parámetros del splitter
-        embedding_model: nombre del modelo de embeddings (opcional)
-
-    Retorna el vectorstore creado.
-    """
-    from pathlib import Path
-
-    config = config or LangChainConfig()
-
+    """Indexa un documento en FAISS usando LangChain."""
+    logger.info(f"Indexando documento: {doc_path}")
+    
     try:
-        from langchain_text_splitters import CharacterTextSplitter
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
         from langchain_community.vectorstores import FAISS
         from langchain_core.documents import Document
-    except Exception as e:
-        logger.error("Instala langchain y dependencias (pip install langchain faiss-cpu): %s", e)
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+    except ImportError as e:
+        logger.error("Instala: pip install langchain langchain-community langchain-text-splitters faiss-cpu sentence-transformers")
         raise
 
     text = _leer_documento(doc_path)
-    splitter = CharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    logger.info(f"Texto leído: {len(text)} caracteres")
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
+        length_function=len,
+    )
     chunks = splitter.split_text(text)
-    docs = [Document(page_content=c) for c in chunks]
+    logger.info(f"Chunks creados: {len(chunks)}")
+    
+    if len(chunks) == 0:
+        raise ValueError("No se generaron chunks")
 
-    # Crear embeddings: usar HuggingFace local
-    try:
-        from langchain_community.embeddings import HuggingFaceEmbeddings
+    docs = [
+        Document(
+            page_content=chunk,
+            metadata={"source": doc_path, "chunk_id": i}
+        )
+        for i, chunk in enumerate(chunks)
+    ]
 
-        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-        logger.info("Usando HuggingFaceEmbeddings locales")
-    except Exception as e:
-        logger.error("No se pudo crear embeddings locales HuggingFace: %s", e)
-        raise
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={'device': 'cpu'},
+        encode_kwargs={'normalize_embeddings': True}
+    )
+    logger.info("Embeddings creados")
 
-    # Crear vectorstore FAISS
     index_path = Path(index_dir)
     index_path.mkdir(parents=True, exist_ok=True)
+    
+    vectorstore = FAISS.from_documents(docs, embeddings)
+    vectorstore.save_local(str(index_path))
+    logger.info(f"Índice guardado en: {index_path}")
+    
+    return vectorstore
 
-    try:
-        vectorstore = FAISS.from_documents(docs, embeddings)
-        # Guardar localmente
-        vectorstore.save_local(str(index_path))
-        logger.info(f"Índice FAISS guardado en {index_path}")
-        return vectorstore
-    except Exception as e:
-        logger.error("Error creando/guardando FAISS: %s", e)
-        raise
 
 
 def load_faiss_index(index_dir: str = "data/faiss_ley769") -> Any:
-    """Cargar un índice FAISS previamente guardado.
-
-    Retorna el vectorstore si existe.
-    """
+    """Carga un índice FAISS previamente guardado."""
     try:
         from langchain_community.vectorstores import FAISS
-    except Exception as e:
-        logger.error("langchain no instalado: %s", e)
-        raise
-
-    p = Path(index_dir)
-    if not p.exists():
-        raise FileNotFoundError(f"Índice FAISS no encontrado en: {index_dir}")
-
-    # Usar HuggingFace embeddings locales para cargar índice
-    try:
         from langchain_community.embeddings import HuggingFaceEmbeddings
-        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    except Exception as e:
-        logger.error("No se pudo crear embeddings para cargar índice: %s", e)
-        raise
+    except ImportError:
+        raise ImportError("Instala: pip install langchain-community faiss-cpu sentence-transformers")
+    # Permitir varios nombres comunes de carpeta de índice
+    candidates = [index_dir, "data/faiss_ley769", "data/faiss_ley769_de_2002", "data/faiss_ley769/", "data/faiss_ley769_de_2002/"]
+    p = None
+    for c in candidates:
+        pc = Path(c)
+        if pc.exists():
+            p = pc
+            index_dir = c
+            break
+
+    if p is None:
+        # intentar listar posibles subdirectorios en data/
+        data_dir = Path("data")
+        if data_dir.exists():
+            for child in data_dir.iterdir():
+                if child.is_dir() and "faiss" in child.name.lower():
+                    p = child
+                    index_dir = str(child)
+                    break
+
+    if p is None:
+        raise FileNotFoundError(f"Índice FAISS no encontrado en: {index_dir}. Busqué: {candidates}")
+
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={'device': 'cpu'},
+        encode_kwargs={'normalize_embeddings': True}
+    )
 
     vs = FAISS.load_local(str(p), embeddings, allow_dangerous_deserialization=True)
     logger.info(f"Índice FAISS cargado desde {index_dir}")
     return vs
 
 
-def answer_with_faiss(question: str, index_dir: str = "data/faiss_ley769", config: Optional[Any] = None, k: int = 4) -> Optional[str]:
+def answer_with_faiss(
+    question: str,
+    index_dir: str = "data/faiss_ley769",
+    config: Optional[Any] = None,
+    k: int = 4,
+) -> Optional[str]:
     """Responder pregunta usando RAG con índice FAISS y LLM configurado.
 
-    Devuelve la respuesta textual del LLM o None en caso de error.
+    Usa `config` (LangChainConfig) si se proporciona; en caso contrario intenta
+    crear LLM desde variables de entorno.
     """
-    config = config or LangChainConfig(max_tokens=2000)  # Aumentar límite de tokens
+    logger.info(f"Respondiendo pregunta: {question}")
+
+    # Cargar índice
     try:
         vs = load_faiss_index(index_dir)
     except Exception as e:
         logger.error("No se pudo cargar índice FAISS: %s", e)
         return None
 
+    # Recuperar documentos (usar método similarity_search si está disponible)
+    docs = None
     try:
-        retriever = vs.as_retriever(search_type="similarity", search_kwargs={"k": k})
-    except Exception:
-        # Compatibilidad con versiones antiguas
-        retriever = vs.as_retriever(search_kwargs={"k": k})
-
-    llm = config.crear_llm()
-    if not llm:
-        logger.error("LLM no disponible; configura credenciales.")
-        return None
-
-    try:
-        from langchain_core.prompts import ChatPromptTemplate
-        from langchain_core.output_parsers import StrOutputParser
-
-        # Obtener documentos relevantes (compatible con distintas versiones)
-        docs = None
-        for method_name in (
-            "get_relevant_documents",
-            "get_relevant_documents",
-            "retrieve",
-            "get_documents",
-            "invoke",
-        ):
+        if hasattr(vs, "similarity_search"):
+            docs = vs.similarity_search(question, k=k)
+        elif hasattr(vs, "search"):
+            docs = vs.search(question, k=k)
+        else:
+            # intentar retriever
+            retriever = None
             try:
-                if hasattr(retriever, method_name):
-                    method = getattr(retriever, method_name)
-                    # Algunas APIs esperan (query) otras (query, k)
-                    try:
-                        docs = method(question)
-                    except TypeError:
-                        docs = method(question, k=k)
-                    break
+                retriever = vs.as_retriever(search_kwargs={"k": k})
             except Exception:
-                continue
+                try:
+                    retriever = vs.as_retriever({"k": k})
+                except Exception:
+                    retriever = None
+
+            if retriever:
+                # algunos retrievers tienen .get_relevant_documents o .get_relevant
+                if hasattr(retriever, "get_relevant_documents"):
+                    docs = retriever.get_relevant_documents(question)
+                elif hasattr(retriever, "retrieve"):
+                    docs = retriever.retrieve(question)
+                elif hasattr(retriever, "invoke"):
+                    try:
+                        docs = retriever.invoke(question)
+                    except Exception:
+                        docs = retriever(question)
 
         if not docs:
-            logger.warning("No se obtuvieron documentos del retriever; continuando sin contexto.")
-            docs = []
+            logger.warning("No se encontraron documentos relevantes")
+            return "No encontré información relevante para tu pregunta."
 
-        context = "\n".join([getattr(d, "page_content", str(d)) for d in docs if d])
+    except Exception as e:
+        logger.error(f"Error recuperando documentos: {e}")
+        return None
 
-        # Prompt para el LLM
-        prompt_template = (
-            "Eres un experto en leyes colombianas. Usa el siguiente contexto para responder la pregunta de forma completa y detallada.\n\n"
-            "Contexto:\n{context}\n\nPregunta: {question}\n\nRespuesta completa:"
-        )
+    # Crear contexto
+    context = "\n\n---\n\n".join([getattr(doc, "page_content", str(doc)) for doc in docs])
+    logger.info(f"Contexto creado: {len(context)} caracteres")
 
-        # First try: runnable chain (prompt -> llm -> parser) if both are compatible
-        try:
-            prompt = ChatPromptTemplate.from_template(prompt_template)
-            chain = prompt | llm | StrOutputParser()
-            result = None
+    # Preparar LLM: preferir config.crear_llm()
+    if config is None:
+        config = LangChainConfig()
+
+    llm = None
+    try:
+        llm = config.crear_llm()
+    except Exception:
+        llm = None
+
+    if not llm:
+        logger.error("LLM no disponible; verifica GEMINI_API_KEY o la configuración del proveedor")
+        return None
+
+    # Generar respuesta usando el LLM (manejo flexible de distintos wrappers)
+    prompt_text = (
+        "Eres un experto en leyes de tránsito colombianas. Usa ÚNICAMENTE el contexto para responder.\n\n"
+        f"CONTEXTO:\n{context}\n\nPREGUNTA: {question}\n\n"
+        "INSTRUCCIONES:\n- Responde basándote SOLO en el contexto\n- Si no tienes la información, dilo\n- Cita artículos cuando sea relevante\n\nRESPUESTA:"
+    )
+
+    # Intentar distintos métodos comunes en wrappers LLM
+    try:
+        # 1) si el LLM tiene invoke (langchain_google_genai) utilizarlo
+        if hasattr(llm, "invoke"):
             try:
-                result = chain.invoke({"context": context, "question": question})
-            except Exception:
-                # Some runnables may raise; fall back below
-                result = None
-            if result:
-                return result if isinstance(result, str) else str(result)
-        except Exception:
-            logger.debug("Runnables chain no disponible o falló, intentando llamadas directas al LLM.")
+                resp = llm.invoke(prompt_text)
+                if hasattr(resp, "content"):
+                    return str(resp.content).strip()
+                if isinstance(resp, str):
+                    return resp.strip()
+                # fallback
+                return str(resp).strip()
+            except Exception as e:
+                logger.debug(f"llm.invoke falló: {e}")
 
-        # Fallback: call the LLM directly with a formatted prompt
-        prompt_text = prompt_template.format(context=context, question=question)
-
-        # Try common LLM call patterns
-        llm_result_text = None
-
-        # 1) generate (may return object with .generations)
-        try:
-            if hasattr(llm, "generate"):
+        # 2) generate
+        if hasattr(llm, "generate"):
+            try:
                 gen = llm.generate([prompt_text])
-                # Try common extraction points
                 if hasattr(gen, "generations"):
                     try:
-                        llm_result_text = gen.generations[0][0].text
+                        return gen.generations[0][0].text.strip()
                     except Exception:
-                        try:
-                            llm_result_text = gen.generations[0][0][0].text
-                        except Exception:
-                            llm_result_text = str(gen)
-                else:
-                    llm_result_text = str(gen)
-        except Exception:
-            logger.debug("LLM.generate falló o no aplica.")
-
-        # 2) __call__ or predict
-        if not llm_result_text:
-            try:
-                if hasattr(llm, "__call__"):
-                    call_res = llm(prompt_text)
-                    if isinstance(call_res, str):
-                        llm_result_text = call_res
-                    else:
-                        # try common attribute names
-                        llm_result_text = getattr(call_res, "text", None) or getattr(call_res, "output", None) or str(call_res)
+                        return str(gen).strip()
+                return str(gen).strip()
             except Exception:
-                logger.debug("LLM.__call__ falló o no aplicable.")
+                logger.debug("llm.generate falló")
 
-        if not llm_result_text and hasattr(llm, "predict"):
+        # 3) __call__
+        try:
+            call_res = llm(prompt_text)
+            if isinstance(call_res, str):
+                return call_res.strip()
+            if hasattr(call_res, "text"):
+                return str(call_res.text).strip()
+            return str(call_res).strip()
+        except Exception:
+            logger.debug("llm(...) falló")
+
+        # 4) predict
+        if hasattr(llm, "predict"):
             try:
                 p = llm.predict(prompt_text)
-                llm_result_text = p if isinstance(p, str) else str(p)
+                return str(p).strip()
             except Exception:
-                logger.debug("LLM.predict falló o no aplicable.")
-
-        if llm_result_text:
-            return llm_result_text
+                logger.debug("llm.predict falló")
 
         logger.error("No se pudo obtener texto del LLM con los métodos probados.")
         return "No se pudo generar una respuesta."
+
     except Exception as e:
-        logger.error("Error ejecutando cadena RAG: %s", e)
+        logger.error(f"Error generando respuesta: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return None
