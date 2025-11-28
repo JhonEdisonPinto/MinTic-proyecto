@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Configurar página de Streamlit
 st.set_page_config(
-    page_title="🚗 Análisis de Siniestros Viales",
+    page_title="🚗 Análisis de siniestros viales en Palmira",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -113,7 +113,14 @@ def main():
     import os
 
     load_dotenv()
-    has_gemini = bool(os.getenv("GEMINI_API_KEY"))
+    
+    # Intentar cargar desde st.secrets (Streamlit Cloud) o desde .env (local)
+    gemini_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else os.getenv("GEMINI_API_KEY")
+    has_gemini = bool(gemini_key)
+    
+    # Asegurar que la variable esté en el entorno para los módulos
+    if gemini_key:
+        os.environ["GEMINI_API_KEY"] = gemini_key
 
     if not has_gemini:
         st.warning("⚠️  GEMINI_API_KEY no configurada. Algunas funciones estarán limitadas.")
@@ -156,7 +163,7 @@ def main():
 
 def page_home(modules):
     """Página principal con resumen y guía rápida."""
-    st.header("🏠 Inicio")
+    st.header("🏠 Inicio - siniestros viales en Palmira")
 
     col1, col2, col3 = st.columns(3)
 
@@ -169,7 +176,7 @@ def page_home(modules):
 
     with col2:
         st.markdown("### 📊 Datos")
-        st.markdown("Analiza archivos CSV de siniestros")
+        st.markdown("Analiza archivos CSV de siniestros viales en Palmira")
         st.write("- 2,834+ registros")
         st.write("- 19 columnas")
         st.write("- Estadísticas automáticas")
@@ -192,7 +199,7 @@ def page_home(modules):
         ### Pasos para usar la aplicación:
 
         1. **📄 Sección PDF**: Haz preguntas sobre la Ley 769 de 2002
-        2. **📈 Sección CSV**: Explora datos de siniestros viales
+        2. **📈 Sección CSV**: Explora datos de siniestros viales en Palmira
         3. **🔗 Sección Unificada**: Combina PDF + CSV para análisis completo
         4. **📋 Reportes**: Genera reportes y visualizaciones
 
@@ -211,8 +218,8 @@ def page_home(modules):
         - `data/Ley_769_de_2002.pdf` — Código Nacional de Tránsito
 
         **CSVs:**
-        - `data/siniestros_1_limpio.csv` — Datos 2022-2024 (2,834 registros)
-        - `data/siniestros_2_limpio.csv` — Datos adicionales
+        - `data/siniestros_1_limpio.csv` — Datos de siniestros viales en Palmira 2022-2024 (2,834 registros)
+        - `data/siniestros_2_limpio.csv` — Datos adicionales de Palmira
 
         **Caché:**
         - `data/ocr_cache/Ley_769_de_2002.txt` — Texto OCR cacheado
@@ -345,7 +352,7 @@ def page_ocr_analysis(modules):
 def page_csv_analysis(modules):
     """Análisis y exploración de CSV."""
     st.header("📈 Exploración de Datos (CSV)")
-    st.markdown("Analiza datos de siniestros viales y responde preguntas.")
+    st.markdown("Analiza datos de siniestros viales en Palmira y responde preguntas.")
 
     # Seleccionar archivo CSV
     csv_options = {
@@ -569,7 +576,7 @@ def page_unified_analysis(modules):
             
         with col2:
             st.markdown("**CSV:**")
-            st.caption("siniestros_1_limpio.csv")
+            st.caption("siniestros_1_limpio.csv (Palmira)")
             if analyzer.df is not None:
                 st.metric("Registros", f"{len(analyzer.df):,}")
 
@@ -743,7 +750,7 @@ def page_info():
 
         ### Equipo del proyecto:
         - Desarrollo: Equipo MinTIC
-        - Coordinación: Jhon Doe
+        
         
         ### Repositorio:
         - GitHub: MinTic-proyecto

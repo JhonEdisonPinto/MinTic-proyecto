@@ -66,7 +66,7 @@ GEMINI_API_KEY=tu-clave-aqui
 - Ve el texto extraído
 
 ### 2. 📈 Exploración de Datos
-- Analiza siniestros viales (2,834 casos)
+- Analiza siniestros viales en Palmira (2,834 casos)
 - Ve gráficos y estadísticas
 - Haz preguntas sobre los datos
 
@@ -101,7 +101,7 @@ GEMINI_API_KEY=tu-clave-aqui
 ✅ app/streamlit_app.py ......... Aplicación (este es el archivo principal)
 ✅ .env ......................... Configuración (necesita GEMINI_API_KEY)
 ✅ data/Ley_769_de_2002.pdf ..... Documento legal
-✅ data/siniestros_1_limpio.csv . Datos de siniestros
+✅ data/siniestros_1_limpio.csv . Datos de siniestros viales en Palmira
 ```
 
 ---

@@ -1,11 +1,11 @@
-# 🎉 PROYECTO COMPLETADO: Aplicación Streamlit de Análisis de Siniestros Viales
+# 🎉 PROYECTO COMPLETADO: Aplicación Streamlit de Análisis de siniestros viales en Palmira
 
 ## 📊 Resumen Ejecutivo
 
 Se ha creado una **aplicación web profesional e integrada** que combina:
 
 1. **📄 OCR** - Extracción automática de documentos legales (Ley 769 de 2002)
-2. **📊 Análisis de Datos** - Exploración interactiva de 2,834 registros de siniestros
+2. **📊 Análisis de Datos** - Exploración interactiva de 2,834 registros de siniestros viales en Palmira
 3. **🤖 IA con Gemini** - Respuestas inteligentes y contextualizadas
 4. **📈 Reportes Visuales** - Gráficos interactivos automáticos
 5. **🔗 Análisis Unificado** - Combinación de legal + estadísticas + IA
@@ -139,7 +139,7 @@ streamlit run app/streamlit_app.py
 
 ## 📊 Casos de Uso
 
-### 1. Usuario Analizando Datos de Siniestros
+### 1. Usuario Analizando Datos de siniestros viales en Palmira
 1. Abre la app → "📈 Exploración de Datos"
 2. Selecciona CSV → Ve resumen automático
 3. Analiza una columna → Ve gráfico
@@ -216,8 +216,8 @@ streamlit run app/streamlit_app.py
 ### Archivos verificados
 - ✅ `app/streamlit_app.py` - Sintaxis correcta
 - ✅ `data/Ley_769_de_2002.pdf` - Existe (230KB+)
-- ✅ `data/siniestros_1_limpio.csv` - Existe (2,834 registros)
-- ✅ `data/siniestros_2_limpio.csv` - Existe (adicional)
+- ✅ `data/siniestros_1_limpio.csv` - Existe (Palmira, 2,834 registros)
+- ✅ `data/siniestros_2_limpio.csv` - Existe (adicional Palmira)
 - ✅ `.env` - Configuración presente
 
 ### Módulos verificados
@@ -290,7 +290,7 @@ Esta aplicación ejemplifica:
 - [ ] Agregar más columnas en análisis
 
 ### Mediano plazo (nuevas funciones)
-- [ ] Mapa interactivo de siniestros
+- [ ] Mapa interactivo de siniestros viales en Palmira
 - [ ] Clustering de incidentes
 - [ ] Predicciones con ML
 - [ ] Comparación temporal
@@ -347,7 +347,7 @@ La aplicación está completamente desarrollada, documentada y lista para ser pr
 5. 📚 Documentación completa
 6. ✨ UX profesional
 
-**¡Disfruta explorando datos de siniestros viales con IA! 🚗**
+**¡Disfruta explorando datos de siniestros viales en Palmira con IA! 🚗**
 
 ---
 

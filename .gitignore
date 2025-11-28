@@ -67,5 +67,6 @@ venv.bak/
 # Logs
 *.log
 
-# Streamlit cache
-/.streamlit/
+# Streamlit secrets and cache
+.streamlit/secrets.toml
+.streamlit/*_cache/

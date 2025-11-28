@@ -1,10 +1,10 @@
-# 🚗 Aplicación Streamlit - Análisis de Siniestros Viales
+# 🚗 Aplicación Streamlit - Análisis de siniestros viales en Palmira
 
 ## 📋 Descripción General
 
 Esta es una **aplicación web interactiva** que integra:
 - 📄 **OCR**: Extracción de texto de documentos legales (Ley 769 de 2002)
-- 📊 **Análisis de Datos**: Exploración interactiva de CSV con siniestros viales
+- 📊 **Análisis de Datos**: Exploración interactiva de CSV con siniestros viales en Palmira
 - 🔗 **Análisis Unificado**: Combinación de PDF + datos + Gemini API
 - 📈 **Reportes**: Visualizaciones y gráficos de estadísticas
 
@@ -87,7 +87,7 @@ La aplicación se abrirá en `http://localhost:8501`
 
 ### 2. Exploración de Datos (CSV)
 
-**Propósito**: Analizar estadísticas de siniestros viales
+**Propósito**: Analizar estadísticas de siniestros viales en Palmira
 
 **Características**:
 - ✅ Resumen automático (filas, columnas, memoria)
@@ -102,8 +102,8 @@ La aplicación se abrirá en `http://localhost:8501`
 - "¿Qué género es más afectado?"
 
 **Datos disponibles**:
-- `data/siniestros_1_limpio.csv` (2,834 registros, 19 columnas)
-- `data/siniestros_2_limpio.csv` (datos adicionales)
+- `data/siniestros_1_limpio.csv` (Palmira, 2,834 registros, 19 columnas)
+- `data/siniestros_2_limpio.csv` (datos adicionales Palmira)
 
 ### 3. Análisis Unificado
 
@@ -117,7 +117,7 @@ La aplicación se abrirá en `http://localhost:8501`
 
 **Ejemplo de preguntas**:
 - "¿Cuál es el tipo de siniestro más frecuente y qué dice la ley?"
-- "¿En qué jornada ocurren más siniestros y por qué?"
+- "¿En qué jornada ocurren más siniestros viales en Palmira y por qué?"
 
 ### 4. Reportes y Visualizaciones
 
@@ -139,8 +139,8 @@ app/
 
 data/
 ├── Ley_769_de_2002.pdf .................. Código Nacional de Tránsito
-├── siniestros_1_limpio.csv .............. Datos principales (2,834 registros)
-├── siniestros_2_limpio.csv .............. Datos adicionales
+├── siniestros_1_limpio.csv .............. Datos principales Palmira (2,834 registros)
+├── siniestros_2_limpio.csv .............. Datos adicionales Palmira
 └── ocr_cache/
     └── Ley_769_de_2002.txt .............. Texto extraído (caché)
 
@@ -203,8 +203,8 @@ echo "GEMINI_API_KEY=tu-clave-aqui" >> .env
 **Solución**:
 ```bash
 # Verifica que los archivos existan:
-# data/siniestros_1_limpio.csv
-# data/siniestros_2_limpio.csv
+# data/siniestros_1_limpio.csv (Palmira)
+# data/siniestros_2_limpio.csv (Palmira)
 ```
 
 ### La aplicación es lenta
@@ -237,7 +237,7 @@ echo "GEMINI_API_KEY=tu-clave-aqui" >> .env
 3. Hacer click en "🔍 Obtener respuesta unificada"
 
 **Resultado esperado**: Respuesta que combina:
-- Datos: CHOQUE es el 60% de los siniestros
+- Datos: CHOQUE es el 60% de los siniestros viales en Palmira
 - Ley: Artículos sobre definiciones y sanciones
 
 ### Caso 3: Generar reporte
@@ -255,7 +255,7 @@ echo "GEMINI_API_KEY=tu-clave-aqui" >> .env
    - ✅ "¿Cuál es la causa más común en zona URBANA?"
 
 2. **Formato de preguntas**: Usa puntuación correcta
-   - ✅ "¿En qué jornada ocurren más siniestros?"
+   - ✅ "¿En qué jornada ocurren más siniestros viales en Palmira?"
    - ✅ "¿Qué dice la ley sobre el CHOQUE?"
 
 3. **Monitorear resultados**: Verifica que las respuestas tengan sentido

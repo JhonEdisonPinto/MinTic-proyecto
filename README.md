@@ -1,6 +1,6 @@
-# 🚗 Análisis de Siniestros Viales - MinTIC
+# 🚗 Análisis de siniestros viales en Palmira - MinTIC
 
-**Aplicación web profesional para analizar siniestros viales en Colombia**
+**Aplicación web profesional para analizar siniestros viales en Palmira, Colombia**
 
 Combina extracción OCR de documentos legales, análisis de datos estadísticos y respuestas inteligentes con Gemini AI.
 
@@ -9,7 +9,7 @@ Combina extracción OCR de documentos legales, análisis de datos estadísticos 
 ## 📋 Características Principales
 
 ✅ **OCR de Documentos** - Extrae automáticamente texto de la Ley 769 de 2002  
-✅ **Análisis de Datos** - Explora 2,834+ registros de siniestros viales  
+✅ **Análisis de Datos** - Explora 2,834+ registros de siniestros viales en Palmira  
 ✅ **Inteligencia Artificial** - Respuestas contextualizadas con Gemini API  
 ✅ **Análisis Unificado** - Combina contexto legal + estadísticas + IA  
 ✅ **Visualizaciones** - Gráficos interactivos automáticos  
@@ -65,7 +65,7 @@ MinTic-proyecto/
 │   └── main.py                    # CLI
 ├── data/
 │   ├── Ley_769_de_2002.pdf       # Documento legal
-│   └── siniestros_1_limpio.csv   # Datos (2,834 registros)
+│   └── siniestros_1_limpio.csv   # Datos Palmira (2,834 registros)
 ├── tests/                         # Tests
 ├── docs/                          # Documentación
 └── RUN_STREAMLIT.ps1             # Script de inicio
@@ -181,7 +181,7 @@ pytest --cov=src tests/         # Con coverage
 
 **Fuentes:**
 - Ley 769 de 2002 (PDF) - Código Nacional de Tránsito
-- Siniestros Viales (CSV) - 2,834 registros de [datos.gov.co](https://datos.gov.co)
+- Siniestros viales en Palmira (CSV) - 2,834 registros de [datos.gov.co](https://datos.gov.co)
 
 **Actualizar datos:**
 ```bash
