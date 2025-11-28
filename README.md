@@ -1,186 +1,262 @@
-# MinTIC - Proyecto de Analítica de Datos Abiertos
+# 🚗 Análisis de Siniestros Viales - MinTIC
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/streamlit-ready-brightgreen.svg)](https://streamlit.io)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-blue.svg)](https://github.com/features/actions)
+**Aplicación web profesional para analizar siniestros viales en Colombia**
 
-## 📋 Descripción
+Combina extracción OCR de documentos legales, análisis de datos estadísticos y respuestas inteligentes con Gemini AI.
 
-Proyecto colaborativo (equipo 3-4 personas) para analizar datasets abiertos del gobierno colombiano (datos.gov.co).
+---
 
-**Stack tecnológico:**
-- Python 3.11+
-- Pandas (manipulación de datos)
-- Streamlit (visualización interactiva)
-- Flask (API REST opcional)
-- LangChain (integración con LLMs)
-- Jupyter (exploración y análisis)
+## 📋 Características Principales
 
-**Objetivos:**
-- Procesar 2000+ registros de datos.gov.co
-- Trabajo colaborativo con Git
-- Deploy automatizado (Streamlit Cloud / Render)
+✅ **OCR de Documentos** - Extrae automáticamente texto de la Ley 769 de 2002  
+✅ **Análisis de Datos** - Explora 2,834+ registros de siniestros viales  
+✅ **Inteligencia Artificial** - Respuestas contextualizadas con Gemini API  
+✅ **Análisis Unificado** - Combina contexto legal + estadísticas + IA  
+✅ **Visualizaciones** - Gráficos interactivos automáticos  
+✅ **Interfaz Web** - Aplicación Streamlit profesional  
 
-## ✨ Características
+---
 
-- ✅ Código modular empaquetado como paquete Python en `src/mintic_project/`
-- ✅ App de visualización con Streamlit en `app/streamlit_app.py`
-- ✅ Notebooks Jupyter para exploración en `notebooks/`
-- ✅ CI/CD automático con GitHub Actions
-- ✅ Pre-commit hooks para asegurar calidad de código (Black, Flake8)
-- ✅ Tests unitarios con PyTest
+## 🚀 Inicio Rápido
 
-## 🚀 Setup rápido
+### 1. Instalación
 
-### Opción 1: Scripts automáticos (recomendado)
-
-**Windows (PowerShell):**
 ```powershell
-# 1. Navega al directorio del proyecto
-cd C:\Users\Jhon\Documents\GitHub\MinTic-proyecto
+# Clonar repositorio
+git clone https://github.com/tu-usuario/MinTic-proyecto.git
+cd MinTic-proyecto
 
-# 2. Ejecuta el script de setup
-.\setup.bat
-
-# 3. Copia y edita las variables de entorno
-copy .env.example .env
-
-# 4. Activa el entorno (ya debería estar activado)
+# Crear entorno virtual
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-# 5. Ejecuta la app Streamlit
-streamlit run app\streamlit_app.py
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Configurar API key
+cp .env.example .env
+# Editar .env y agregar GEMINI_API_KEY
 ```
 
-**Mac/Linux (Bash):**
-```bash
-cd ~/GitHub/MinTic-proyecto
-bash setup.sh
-cp .env.example .env
-source .venv/bin/activate
+### 2. Ejecutar Aplicación
+
+```powershell
+# Script automatizado (recomendado)
+.\RUN_STREAMLIT.ps1
+
+# O comando directo
 streamlit run app/streamlit_app.py
 ```
 
-### Opción 2: Setup manual
+Se abrirá en `http://localhost:8501`
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install --upgrade pip
-pip install -r requirements.txt
-pre-commit install
-copy .env.example .env
-```
+---
 
-## 📁 Estructura del proyecto
+## 📊 Estructura
 
 ```
 MinTic-proyecto/
 ├── app/
-│   └── streamlit_app.py          # Aplicación Streamlit principal
-├── src/
-│   └── mintic_project/
-│       ├── __init__.py
-│       └── processor.py           # Funciones de procesamiento
-├── notebooks/
-│   └── 01_exploracion.ipynb       # Exploración con Jupyter
-├── tests/
-│   └── test_processor.py          # Tests unitarios
-├── .github/
-│   ├── workflows/ci.yml
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   └── ISSUE_TEMPLATE/
-├── .vscode/settings.json
-├── .env.example
-├── .gitignore
-├── .pre-commit-config.yaml
-├── requirements.txt
-├── setup.py
-├── setup.sh
-├── setup.bat
-├── CONTRIBUTING.md
-└── README.md
+│   └── streamlit_app.py          # Aplicación web
+├── src/mintic_project/
+│   ├── langchain_integration.py   # OCR + Gemini
+│   ├── db_analysis.py             # Análisis CSV
+│   ├── unified_analyzer.py        # Análisis combinado
+│   └── main.py                    # CLI
+├── data/
+│   ├── Ley_769_de_2002.pdf       # Documento legal
+│   └── siniestros_1_limpio.csv   # Datos (2,834 registros)
+├── tests/                         # Tests
+├── docs/                          # Documentación
+└── RUN_STREAMLIT.ps1             # Script de inicio
 ```
 
-## 🧪 Desarrollo local
+---
 
-### Formateo y linting
+## 🎯 Uso
 
-```powershell
-black .                    # Formatear con Black
-flake8 src tests          # Linting con Flake8
-black --check .           # Verificar sin modificar
+### Aplicación Web (Streamlit)
+
+**6 secciones principales:**
+
+1. **🏠 Inicio** - Dashboard y tutorial
+2. **📄 PDF** - Análisis de la Ley 769 con OCR
+3. **📈 Datos** - Exploración de CSV interactiva
+4. **🔗 Unificado** - Análisis combinado (PDF + CSV + Gemini)
+5. **📋 Reportes** - Gráficos y visualizaciones
+6. **ℹ️ Información** - Documentación y soporte
+
+**Ejemplos de preguntas:**
+
+```
+# Sobre PDF
+"¿Qué sanciones establece para conducir embriagado?"
+
+# Sobre datos
+"¿Cuál es el tipo de siniestro más frecuente?"
+
+# Combinadas
+"¿El CHOQUE es frecuente y qué dice la ley?"
 ```
 
-### Ejecutar tests
+### CLI (Opcional)
 
-```powershell
-pytest                    # Tests básicos
-pytest -v               # Verbose
-pytest --cov=src        # Con coverage
+```bash
+# Extraer texto
+python -m src.mintic_project.main extract --pdf data/Ley_769_de_2002.pdf
+
+# Hacer preguntas
+python -m src.mintic_project.main query --pdf data/Ley_769_de_2002.pdf --question "..."
+
+# Modo interactivo
+python -m src.mintic_project.main interactive --pdf data/Ley_769_de_2002.pdf
 ```
 
-### Instalar en modo desarrollo
+---
 
-```powershell
-pip install -e .
-```
+## 🛠️ Stack Técnico
 
-## 🔧 Variables de entorno
+**Backend**: Python 3.13, Pandas, LangChain, Pytesseract  
+**Frontend**: Streamlit  
+**IA**: Gemini API  
+**OCR**: pytesseract + pdf2image + pypdf (fallback)  
 
-Crear `.env` (copiar de `.env.example`):
+---
+
+## 🔧 Configuración
+
+### Variables de Entorno (.env)
 
 ```env
-OPENAI_API_KEY="tu-clave-aqui"
-DATA_SOURCE_URL="https://www.datos.gov.co/resource/xxxx-xxxx.csv"
-STREAMLIT_SERVER_PORT=8501
-ENV=development
-LOG_LEVEL=INFO
+# Obligatorio
+GEMINI_API_KEY=tu-clave-aqui
+
+# Opcional
+POPPLER_PATH=C:\...\tools\poppler\...\bin
+GEMINI_MODEL=gemini-2.0-flash-exp
 ```
 
-## 📝 Guía de contribución
+Obtén tu API key en [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-Ver [`CONTRIBUTING.md`](CONTRIBUTING.md) para:
-- Flujo Git (ramas, commits, PRs)
-- Estándares de código
-- Proceso de revisión
+---
 
-**Resumen rápido:**
-1. `git checkout -b feat/mi-caracteristica`
-2. Hacer cambios
-3. `black .` y `flake8 src tests`
-4. `pytest`
-5. Push y abrir PR
+## 🔍 Solución de Problemas
 
-## 🌐 Deploy
+**"GEMINI_API_KEY no configurada"**
+```bash
+echo "GEMINI_API_KEY=tu-clave" >> .env
+```
 
-### Streamlit Cloud
-1. Push a GitHub
-2. Conectar repo en Streamlit Cloud
-3. Seleccionar `app/streamlit_app.py`
-4. Agregar secrets en Settings
+**"Streamlit not found"**
+```powershell
+.\INSTALL_STREAMLIT.ps1
+```
 
-### Render.com
-1. Conectar GitHub
-2. Build: `pip install -r requirements.txt`
-3. Start: `streamlit run app/streamlit_app.py --server.port=$PORT`
-4. Agregar env vars
+**"Poppler not found"**
+- Sistema usa `pypdf` como fallback (no requiere Poppler)
+- Para OCR con imágenes: descarga [Poppler](https://github.com/oschwartz10612/poppler-windows/releases)
 
-## 📚 Recursos
+---
 
-- [Streamlit Docs](https://docs.streamlit.io/)
-- [Pandas](https://pandas.pydata.org/docs/)
-- [LangChain](https://python.langchain.com/)
-- [datos.gov.co](https://www.datos.gov.co/)
-- [Black](https://black.readthedocs.io/)
-- [Flake8](https://flake8.pycqa.org/)
+## 📚 Documentación
 
-## 📄 Licencia
+- **[INICIO_RAPIDO.md](docs/INICIO_RAPIDO.md)** - Guía de 3 pasos
+- **[STREAMLIT_README.md](docs/STREAMLIT_README.md)** - Documentación completa (500+ líneas)
+- **[ANALISIS_UNIFICADO.md](docs/ANALISIS_UNIFICADO.md)** - Guía de análisis
+- **[PROYECTO_COMPLETADO.md](docs/PROYECTO_COMPLETADO.md)** - Resumen ejecutivo
 
-MIT License
+---
 
-## 👥 Equipo
+## 🧪 Testing
 
-Proyecto colaborativo MinTIC (3-4 personas)
+```bash
+pytest tests/                    # Todos los tests
+pytest tests/test_ocr.py -v     # Tests específicos
+pytest --cov=src tests/         # Con coverage
+```
+
+---
+
+## 📊 Datos
+
+**Fuentes:**
+- Ley 769 de 2002 (PDF) - Código Nacional de Tránsito
+- Siniestros Viales (CSV) - 2,834 registros de [datos.gov.co](https://datos.gov.co)
+
+**Actualizar datos:**
+```bash
+python scripts/descargar_datos.py
+```
+
+---
+
+## 🤝 Contribuir
+
+1. Fork el repositorio
+2. Crea branch (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit (`git commit -am 'Agregar funcionalidad'`)
+4. Push (`git push origin feature/nueva-funcionalidad`)
+5. Abre Pull Request
+
+---
+
+## 📝 Licencia
+
+MIT License - Ver archivo `LICENSE`
+
+---
+
+## 📞 Contacto
+
+**Equipo**: MinTIC - Proyecto Colaborativo  
+**Repo**: GitHub MinTic-proyecto  
+**Issues**: GitHub Issues  
+
+---
+
+## 🎓 Casos de Uso
+
+1. **Análisis Exploratorio** - Analistas de datos
+2. **Investigación Legal** - Estudiantes de derecho
+3. **Análisis Ejecutivo** - Gerentes de seguridad vial
+4. **Reportes** - Consultores y presentaciones
+
+---
+
+## ✨ Características Destacadas
+
+✅ Caché inteligente  
+✅ Fallback automático (pypdf → OCR)  
+✅ UX profesional  
+✅ Multi-tab (6 secciones)  
+✅ Rendimiento optimizado  
+✅ Error handling robusto  
+✅ Componentes modulares  
+
+---
+
+## 🎯 Roadmap
+
+- [ ] Exportar reportes PDF
+- [ ] Gráficos Plotly avanzados
+- [ ] Mapa interactivo
+- [ ] ML predictivo
+- [ ] Multi-idioma
+- [ ] Autenticación usuarios
+
+---
+
+**Versión**: 1.0  
+**Status**: ✅ Producción  
+**Última actualización**: Noviembre 2025  
+
+---
+
+## 🚀 ¡Comienza Ahora!
+
+```powershell
+.\RUN_STREAMLIT.ps1
+```
+
+¡La aplicación se abrirá automáticamente! 🎊
 

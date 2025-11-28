@@ -1,314 +1,265 @@
-"""Configuración y utilidades para integración con LangChain.
+"""Configuración y utilidades para OCR usando pytesseract
 
-Este módulo proporciona clases y funciones para integrar el sistema
-de análisis de siniestros con LangChain para crear agentes multiagente.
+Este módulo proporciona funciones para extraer texto de PDFs usando OCR
+y responder preguntas sobre el contenido usando Gemini API.
 """
 import os
 import json
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 import logging
-import mimetypes
-import io
 
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Cargar variables de entorno
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # ============================================================================
-# FUNCIONES RAG CORREGIDAS
+# FUNCIONES OCR BASADAS EN PYTESSERACT
 # ============================================================================
 
-def _leer_documento(path: str) -> str:
-    """Leer documento: soporta .txt, .md y .pdf"""
-    p = Path(path)
-    if not p.exists():
-        raise FileNotFoundError(f"Documento no encontrado: {path}")
-
-    suffix = p.suffix.lower()
+def extract_text_from_pdf_ocr(
+    pdf_path: str,
+    cache_txt: bool = True,
+    cache_dir: str = "data/ocr_cache"
+) -> str:
+    """Extrae texto de un PDF usando OCR (pytesseract).
     
-    if suffix in {".txt", ".md"}:
-        return p.read_text(encoding="utf-8")
-
-    if suffix == ".pdf":
-        try:
-            from PyPDF2 import PdfReader
-            reader = PdfReader(str(p))
-            pages = []
-            for page in reader.pages:
-                text = page.extract_text() or ""
-                if text.strip():
-                    pages.append(text)
-            resultado = "\n\n".join(pages)
-            logger.info(f"PDF leído: {len(pages)} páginas, {len(resultado)} caracteres")
-            return resultado
-        except Exception as e:
-            logger.error(f"Error leyendo PDF: {e}")
-            raise
-
-    try:
-        return p.read_text(encoding="utf-8")
-    except Exception:
-        raise ValueError(f"Formato no soportado: {suffix}")
-
-
-def index_document_to_faiss(
-    doc_path: str,
-    index_dir: str = "data/faiss_ley769",
-    config: Optional[Any] = None,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
-    embedding_model: Optional[str] = None,
-) -> Any:
-    """Indexa un documento en FAISS usando LangChain."""
-    logger.info(f"Indexando documento: {doc_path}")
+    CARACTERÍSTICAS:
+    - Usa pytesseract para extraer texto de imágenes
+    - Cachea el resultado en un archivo .txt para no re-procesar
+    - Intenta múltiples métodos de conversión PDF->imagen
     
+    Args:
+        pdf_path: Ruta del PDF
+        cache_txt: Si True, guarda resultado en .txt y lo reutiliza
+        cache_dir: Directorio para guardar archivos .txt cacheados
+    
+    Returns:
+        Texto extraído del PDF
+    """
+    pdf_path_obj = Path(pdf_path)
+    if not pdf_path_obj.exists():
+        raise FileNotFoundError(f"PDF no encontrado: {pdf_path}")
+    
+    logger.info(f"📄 Extrayendo texto OCR de: {pdf_path}")
+
+    # 1. Verificar si hay cache
+    if cache_txt:
+        cache_path = Path(cache_dir) / f"{pdf_path_obj.stem}.txt"
+        if cache_path.exists():
+            logger.info(f"✓ Usando cache: {cache_path}")
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return f.read()
+
+    # 2. Intentar extracción de texto sin OCR usando pypdf (más rápido, sin dependencias externas)
     try:
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from langchain_community.vectorstores import FAISS
-        from langchain_core.documents import Document
-        from langchain_community.embeddings import HuggingFaceEmbeddings
+        from pypdf import PdfReader
+
+        logger.info("⏳ Intentando extracción con pypdf (sin OCR)...")
+        reader = PdfReader(str(pdf_path_obj))
+        pages_text = []
+        for i, page in enumerate(reader.pages):
+            txt = page.extract_text() or ""
+            pages_text.append(f"\n--- PÁGINA {i+1} ---\n{txt}\n")
+
+        full_text = "".join(pages_text).strip()
+        if full_text and len(full_text) > 100:
+            logger.info(f"✓ Extracción con pypdf exitosa: {len(full_text)} caracteres")
+            if cache_txt:
+                cache_dir_obj = Path(cache_dir)
+                cache_dir_obj.mkdir(parents=True, exist_ok=True)
+                cache_path = cache_dir_obj / f"{pdf_path_obj.stem}.txt"
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    f.write(full_text)
+                logger.info(f"✓ Texto guardado en cache: {cache_path}")
+            return full_text
+        else:
+            logger.info("⚠️  Extracción con pypdf devolvió texto vacío o corto, proceder a OCR")
+    except Exception as e:
+        logger.info(f"⚠️  pypdf no disponible o falló: {e}")
+
+    # 3. Si pypdf no pudo, usar OCR: convertir a imágenes y aplicar pytesseract
+    try:
+        import pytesseract
+        from pdf2image import convert_from_path
+
+        poppler_path = os.getenv("POPPLER_PATH") or os.getenv("POPPLER_BIN")
+        logger.info("⏳ Convirtiendo PDF a imágenes para OCR...")
+        if poppler_path:
+            images = convert_from_path(str(pdf_path_obj), poppler_path=poppler_path)
+        else:
+            images = convert_from_path(str(pdf_path_obj))
+
+        logger.info(f"✓ {len(images)} páginas convertidas")
+
+        logger.info("⏳ Ejecutando OCR (esto puede tardar)...")
+        all_text = ""
+        for i, img in enumerate(images):
+            logger.info(f"   Procesando página {i+1}/{len(images)}...")
+            text = pytesseract.image_to_string(img, lang="spa+eng")
+            all_text += f"\n--- PÁGINA {i+1} ---\n{text}\n"
+
+        logger.info(f"✓ OCR completado: {len(all_text)} caracteres extraídos")
+
+        # 4. Guardar en cache
+        if cache_txt:
+            cache_dir_obj = Path(cache_dir)
+            cache_dir_obj.mkdir(parents=True, exist_ok=True)
+            cache_path = cache_dir_obj / f"{pdf_path_obj.stem}.txt"
+            with open(cache_path, "w", encoding="utf-8") as f:
+                f.write(all_text)
+            logger.info(f"✓ Texto guardado en cache: {cache_path}")
+
+        return all_text
     except ImportError as e:
-        logger.error("Instala: pip install langchain langchain-community langchain-text-splitters faiss-cpu sentence-transformers")
+        logger.error(f"❌ Falta dependencia Python para OCR: {e}")
+        logger.error("   Instala: pip install pytesseract pdf2image pillow pypdf")
+        raise
+    except Exception as e:
+        # Detectar error común de pdf2image cuando poppler no está disponible
+        msg = str(e)
+        if "Unable to get page count" in msg or "page count" in msg or "Poppler" in msg:
+            logger.error("❌ Error en OCR: %s", e)
+            logger.error("   Parece que Poppler no está instalado o no está en PATH.")
+            logger.error("   En Windows descarga Poppler: https://github.com/oschwartz10612/poppler-windows/releases")
+            logger.error("   O configura la variable POPPLER_PATH en tu .env con la ruta al binario 'poppler-xx/bin'")
+        else:
+            logger.error(f"❌ Error en OCR: {e}")
         raise
 
-    text = _leer_documento(doc_path)
-    logger.info(f"Texto leído: {len(text)} caracteres")
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
-        length_function=len,
-    )
-    chunks = splitter.split_text(text)
-    logger.info(f"Chunks creados: {len(chunks)}")
+def _create_gemini_llm(
+    model: str = "gemini-2.5-flash",
+    temperature: float = 0.2,
+    max_output_tokens: int = 2048
+):
+    """Crear y devolver una instancia de ChatGoogleGenerativeAI (Gemini).
     
-    if len(chunks) == 0:
-        raise ValueError("No se generaron chunks")
-
-    docs = [
-        Document(
-            page_content=chunk,
-            metadata={"source": doc_path, "chunk_id": i}
-        )
-        for i, chunk in enumerate(chunks)
-    ]
-
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2",
-        model_kwargs={'device': 'cpu'},
-        encode_kwargs={'normalize_embeddings': True}
-    )
-    logger.info("Embeddings creados")
-
-    index_path = Path(index_dir)
-    index_path.mkdir(parents=True, exist_ok=True)
-    
-    vectorstore = FAISS.from_documents(docs, embeddings)
-    vectorstore.save_local(str(index_path))
-    logger.info(f"Índice guardado en: {index_path}")
-    
-    return vectorstore
-
-
-
-def load_faiss_index(index_dir: str = "data/faiss_ley769") -> Any:
-    """Carga un índice FAISS previamente guardado."""
-    try:
-        from langchain_community.vectorstores import FAISS
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-    except ImportError:
-        raise ImportError("Instala: pip install langchain-community faiss-cpu sentence-transformers")
-    # Permitir varios nombres comunes de carpeta de índice
-    candidates = [index_dir, "data/faiss_ley769", "data/faiss_ley769_de_2002", "data/faiss_ley769/", "data/faiss_ley769_de_2002/"]
-    p = None
-    for c in candidates:
-        pc = Path(c)
-        if pc.exists():
-            p = pc
-            index_dir = c
-            break
-
-    if p is None:
-        # intentar listar posibles subdirectorios en data/
-        data_dir = Path("data")
-        if data_dir.exists():
-            for child in data_dir.iterdir():
-                if child.is_dir() and "faiss" in child.name.lower():
-                    p = child
-                    index_dir = str(child)
-                    break
-
-    if p is None:
-        raise FileNotFoundError(f"Índice FAISS no encontrado en: {index_dir}. Busqué: {candidates}")
-
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2",
-        model_kwargs={'device': 'cpu'},
-        encode_kwargs={'normalize_embeddings': True}
-    )
-
-    vs = FAISS.load_local(str(p), embeddings, allow_dangerous_deserialization=True)
-    logger.info(f"Índice FAISS cargado desde {index_dir}")
-    return vs
-
-
-def answer_with_faiss(
-    question: str,
-    index_dir: str = "data/faiss_ley769",
-    config: Optional[Any] = None,
-    k: int = 4,
-) -> Optional[str]:
-    """Responder pregunta usando RAG con índice FAISS y LLM configurado.
-
-    Usa `config` (LangChainConfig) si se proporciona; en caso contrario intenta
-    crear LLM desde variables de entorno.
+    CARACTERÍSTICAS:
+    - Lee GEMINI_API_KEY del .env
+    - Manejo de errores mejorado
+    - Verificación de API key
     """
-    logger.info(f"Respondiendo pregunta: {question}")
-
-    # Cargar índice
-    try:
-        vs = load_faiss_index(index_dir)
-    except Exception as e:
-        logger.error("No se pudo cargar índice FAISS: %s", e)
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        logger.error("❌ GEMINI_API_KEY no encontrada en variables de entorno")
+        logger.error("   Configúrala en tu archivo .env")
         return None
 
-    # Recuperar documentos (usar método similarity_search si está disponible)
-    docs = None
     try:
-        if hasattr(vs, "similarity_search"):
-            docs = vs.similarity_search(question, k=k)
-        elif hasattr(vs, "search"):
-            docs = vs.search(question, k=k)
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        llm = ChatGoogleGenerativeAI(
+            model=model,
+            google_api_key=api_key,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+        logger.info(f"✓ LLM Gemini creado: {model}")
+        return llm
+    except Exception as e:
+        logger.error(f"❌ Error creando LLM Gemini: {e}")
+        return None
+
+
+def answer_with_ocr(
+    question: str,
+    pdf_path: str = "data/Ley_769_de_2002.pdf",
+    llm=None,
+    max_context_length: int = 100000
+) -> str:
+    """Responde preguntas sobre un PDF usando OCR + Gemini.
+    
+    CARACTERÍSTICAS:
+    - Extrae texto con OCR
+    - Usa Gemini para responder preguntas
+    - Limita contexto para no exceder límites de token
+    
+    Args:
+        question: La pregunta a responder
+        pdf_path: Ruta del PDF
+        llm: Instancia de LLM (si None, se crea una)
+        max_context_length: Máximo de caracteres de contexto
+    
+    Returns:
+        Respuesta de Gemini
+    """
+    
+    logger.info(f"❓ Pregunta: {question}")
+    
+    # 1. Extraer texto del PDF con OCR
+    try:
+        full_text = extract_text_from_pdf_ocr(pdf_path)
+    except Exception as e:
+        logger.error(f"❌ Error extrayendo texto: {e}")
+        return "⚠️  No pude extraer texto del PDF con OCR."
+    
+    # 2. Limitar contexto si es muy largo
+    if len(full_text) > max_context_length:
+        logger.warning(f"⚠️  Contexto muy largo ({len(full_text)} chars), limitando a {max_context_length}")
+        # Intentar usar solo las primeras secciones relevantes
+        full_text = full_text[:max_context_length]
+    
+    logger.info(f"✓ Contexto preparado: {len(full_text)} caracteres")
+    
+    # 3. Preparar LLM
+    if llm is None:
+        llm = _create_gemini_llm()
+        if llm is None:
+            return "⚠️  No hay LLM disponible. Configura GEMINI_API_KEY."
+
+    # 4. Crear prompt
+    prompt = f"""Eres un experto en la Ley 769 de 2002 (Código Nacional de Tránsito de Colombia).
+
+CONTENIDO del PDF (extraído con OCR):
+{full_text}
+
+PREGUNTA: {question}
+
+INSTRUCCIONES:
+- Responde SOLO basándote en el contenido anterior
+- Cita artículos específicos cuando sea posible
+- Si la información no está en el contenido, di claramente "No encuentro esta información en el PDF"
+- Sé preciso y conciso
+- Entiende que el OCR puede tener errores menores de ortografía
+"""
+
+    # 5. Invocar LLM
+    try:
+        logger.info("⏳ Generando respuesta con Gemini...")
+        response = llm.invoke(prompt)
+        
+        if hasattr(response, "content"):
+            result = response.content
         else:
-            # intentar retriever
-            retriever = None
-            try:
-                retriever = vs.as_retriever(search_kwargs={"k": k})
-            except Exception:
-                try:
-                    retriever = vs.as_retriever({"k": k})
-                except Exception:
-                    retriever = None
-
-            if retriever:
-                # algunos retrievers tienen .get_relevant_documents o .get_relevant
-                if hasattr(retriever, "get_relevant_documents"):
-                    docs = retriever.get_relevant_documents(question)
-                elif hasattr(retriever, "retrieve"):
-                    docs = retriever.retrieve(question)
-                elif hasattr(retriever, "invoke"):
-                    try:
-                        docs = retriever.invoke(question)
-                    except Exception:
-                        docs = retriever(question)
-
-        if not docs:
-            logger.warning("No se encontraron documentos relevantes")
-            return "No encontré información relevante para tu pregunta."
-
+            result = str(response)
+        
+        logger.info("✓ Respuesta generada")
+        return result
+        
     except Exception as e:
-        logger.error(f"Error recuperando documentos: {e}")
-        return None
-
-    # Crear contexto
-    context = "\n\n---\n\n".join([getattr(doc, "page_content", str(doc)) for doc in docs])
-    logger.info(f"Contexto creado: {len(context)} caracteres")
-
-    # Preparar LLM: preferir config.crear_llm()
-    if config is None:
-        config = LangChainConfig()
-
-    llm = None
-    try:
-        llm = config.crear_llm()
-    except Exception:
-        llm = None
-
-    if not llm:
-        logger.error("LLM no disponible; verifica GEMINI_API_KEY o la configuración del proveedor")
-        return None
-
-    # Generar respuesta usando el LLM (manejo flexible de distintos wrappers)
-    prompt_text = (
-        "Eres un experto en leyes de tránsito colombianas. Usa ÚNICAMENTE el contexto para responder.\n\n"
-        f"CONTEXTO:\n{context}\n\nPREGUNTA: {question}\n\n"
-        "INSTRUCCIONES:\n- Responde basándote SOLO en el contexto\n- Si no tienes la información, dilo\n- Cita artículos cuando sea relevante\n\nRESPUESTA:"
-    )
-
-    # Intentar distintos métodos comunes en wrappers LLM
-    try:
-        # 1) si el LLM tiene invoke (langchain_google_genai) utilizarlo
-        if hasattr(llm, "invoke"):
-            try:
-                resp = llm.invoke(prompt_text)
-                if hasattr(resp, "content"):
-                    return str(resp.content).strip()
-                if isinstance(resp, str):
-                    return resp.strip()
-                # fallback
-                return str(resp).strip()
-            except Exception as e:
-                logger.debug(f"llm.invoke falló: {e}")
-
-        # 2) generate
-        if hasattr(llm, "generate"):
-            try:
-                gen = llm.generate([prompt_text])
-                if hasattr(gen, "generations"):
-                    try:
-                        return gen.generations[0][0].text.strip()
-                    except Exception:
-                        return str(gen).strip()
-                return str(gen).strip()
-            except Exception:
-                logger.debug("llm.generate falló")
-
-        # 3) __call__
-        try:
-            call_res = llm(prompt_text)
-            if isinstance(call_res, str):
-                return call_res.strip()
-            if hasattr(call_res, "text"):
-                return str(call_res.text).strip()
-            return str(call_res).strip()
-        except Exception:
-            logger.debug("llm(...) falló")
-
-        # 4) predict
-        if hasattr(llm, "predict"):
-            try:
-                p = llm.predict(prompt_text)
-                return str(p).strip()
-            except Exception:
-                logger.debug("llm.predict falló")
-
-        logger.error("No se pudo obtener texto del LLM con los métodos probados.")
-        return "No se pudo generar una respuesta."
-
-    except Exception as e:
-        logger.error(f"Error generando respuesta: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return None
+        logger.error(f"❌ Error generando respuesta: {e}")
+        return "⚠️  Error al generar la respuesta."
 
 
+# ============================================================================
+# CLASES PRINCIPALES
+# ============================================================================
 
 class LangChainConfig:
-    from pathlib import Path
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    """
-    Configuración para integrar LangChain con Gemini API Key gratuita.
-    """
+    """Configuración para integrar LangChain con Gemini API Key."""
 
     def __init__(
         self,
         provider: str = "google",
-        model: str = "gemini-2.5-flash",  # Modelo actualizado
+        model: str = "gemini-2.5-flash",
         temperature: float = 0.7,
-        max_tokens: int = 2500,
+        max_tokens: int = 25000,
     ):
         self.provider = provider
         self.model = model
@@ -319,10 +270,10 @@ class LangChainConfig:
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
 
         if provider == "google" and not self.gemini_api_key:
-            logger.warning("⚠️ No se encontró GEMINI_API_KEY en el entorno")
+            logger.warning("⚠️  GEMINI_API_KEY no encontrada en el entorno")
 
     def crear_llm(self):
-        """Crear LLM usando Gemini API Key gratuita."""
+        """Crear LLM usando Gemini API Key."""
         if not self.gemini_api_key:
             logger.error("❌ GEMINI_API_KEY no configurada")
             return None
@@ -330,186 +281,97 @@ class LangChainConfig:
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
 
-            logger.info(f"Creando LLM Gemini modelo={self.model}")
-
             return ChatGoogleGenerativeAI(
                 model=self.model,
                 google_api_key=self.gemini_api_key,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,  # ✔️ CORREGIDO
+                max_output_tokens=self.max_tokens,
                 convert_system_message_to_human=True,
             )
         except Exception as e:
-            logger.error(f"Error creando LLM Gemini: {e}")
+            logger.error(f"❌ Error creando LLM: {e}")
             return None
 
 
-class RAGContextManager:
-    """Gestor de contextos para RAG (Retrieval-Augmented Generation)."""
+class OCRAnalyzer:
+    """Analizador de PDFs usando OCR + Gemini."""
 
-    def __init__(self, contexto_path: str = "data/contexto_rag.json"):
-        """Inicializar gestor de contextos.
-
+    def __init__(self, pdf_path: str = "data/Ley_769_de_2002.pdf", config: Optional[LangChainConfig] = None):
+        """Inicializar analizador OCR.
+        
         Args:
-            contexto_path: Ruta al archivo de contexto RAG.
+            pdf_path: Ruta del PDF a analizar
+            config: Configuración de LangChain (si None, se crea una)
         """
-        self.contexto_path = Path(contexto_path)
-        self.contexto = {}
-        self.cargar_contexto()
-
-    def cargar_contexto(self):
-        """Cargar contexto desde archivo JSON."""
-        if self.contexto_path.exists():
-            try:
-                with open(self.contexto_path, "r", encoding="utf-8") as f:
-                    self.contexto = json.load(f)
-                logger.info(f"✓ Contexto RAG cargado: {len(self.contexto)} temas")
-            except Exception as e:
-                logger.error(f"Error cargando contexto: {e}")
-                self.contexto = {}
-        else:
-            logger.warning(f"Archivo de contexto no encontrado: {self.contexto_path}")
-
-    def obtener_contexto(self, tema: str, default: str = "") -> str:
-        """Obtener contexto de un tema específico.
-
-        Args:
-            tema: Tema para obtener contexto.
-            default: Valor por defecto si no existe.
-
-        Returns:
-            Contexto del tema.
-        """
-        return self.contexto.get(tema, default)
-
-    def crear_prompt_rag(
-        self, pregunta: str, temas_relevantes: List[str] = None
-    ) -> str:
-        """Crear prompt que combina pregunta con contexto RAG.
-
-        Args:
-            pregunta: Pregunta del usuario.
-            temas_relevantes: Lista de temas RAG a incluir.
-
-        Returns:
-            Prompt completo para LLM.
-        """
-        if temas_relevantes is None:
-            temas_relevantes = list(self.contexto.keys())
-
-        prompt = "Contexto de Siniestros Viales en Palmira:\n\n"
-
-        for tema in temas_relevantes:
-            if tema in self.contexto:
-                prompt += f"--- {tema.upper()} ---\n"
-                prompt += self.contexto[tema]
-                prompt += "\n\n"
-
-        prompt += f"Pregunta: {pregunta}\n\n"
-        prompt += "Basándote en el contexto anterior, proporciona un análisis detallado.\n"
-
-        return prompt
-
-
-class MultiagenteSiniestros:
-    """Gestor de multiagentes para análisis de siniestros."""
-
-    def __init__(self, config: Optional[LangChainConfig] = None):
-        """Inicializar sistema multiagente.
-
-        Args:
-            config: Configuración de LangChain.
-        """
+        self.pdf_path = pdf_path
         self.config = config or LangChainConfig()
-        self.rag_manager = RAGContextManager()
         self.llm = self.config.crear_llm()
+        self.extracted_text = None
 
-        # Definir tipos de agentes
-        self.agentes = {
-            "temporal": {
-                "descripcion": "Analiza patrones temporales de siniestros",
-                "temas": ["jornada", "dia_semana"],
-            },
-            "geografico": {
-                "descripcion": "Analiza distribución geográfica",
-                "temas": ["general"],
-            },
-            "prediccion": {
-                "descripcion": "Predice riesgo de siniestros",
-                "temas": ["general", "gravedad"],
-            },
-            "normativo": {
-                "descripcion": "Responde sobre normas de tránsito",
-                "temas": ["general"],
-            },
-        }
-
-    def analizar(self, pregunta: str, tipo_agente: str = "temporal") -> Optional[str]:
-        if not self.llm:
-            logger.error(f"LLM no disponible. Configurar credenciales para el proveedor '{self.config.provider}'")
-            return None
-
-        if tipo_agente not in self.agentes:
-            logger.error(f"Tipo de agente no válido: {tipo_agente}")
-            return None
-
-        agente = self.agentes[tipo_agente]
-        temas = agente["temas"]
-
-        logger.info(f"Usando agente: {tipo_agente}")
-        logger.info(f"Temas relevantes: {temas}")
-
-        # Crear prompt con contexto RAG
-        prompt = self.rag_manager.crear_prompt_rag(pregunta, temas)
-
+    def extraer_texto(self) -> str:
+        """Extraer texto del PDF usando OCR."""
+        if self.extracted_text is not None:
+            logger.info("✓ Usando texto en caché")
+            return self.extracted_text
+        
         try:
-            respuesta = self.llm.invoke(prompt)  # <-- ✔️ CORREGIDO
-            return respuesta
+            self.extracted_text = extract_text_from_pdf_ocr(self.pdf_path)
+            return self.extracted_text
         except Exception as e:
-            logger.error(f"Error en análisis: {e}")
-            return None
-    def listar_agentes(self) -> Dict[str, str]:
-        """Listar agentes disponibles.
+            logger.error(f"❌ Error extrayendo texto: {e}")
+            return ""
 
+    def responder_pregunta(self, pregunta: str) -> str:
+        """Responder una pregunta sobre el PDF usando OCR.
+        
+        Args:
+            pregunta: La pregunta a responder
+        
         Returns:
-            Diccionario con agentes y sus descripciones.
+            Respuesta de Gemini
         """
-        return {
-            nombre: agente["descripcion"]
-            for nombre, agente in self.agentes.items()
-        }
+        if self.llm is None:
+            logger.error("❌ LLM no disponible")
+            return "⚠️  Configura GEMINI_API_KEY"
+        
+        return answer_with_ocr(pregunta, self.pdf_path, llm=self.llm)
+
+    def preguntas_multiples(self, preguntas: List[str]) -> Dict[str, str]:
+        """Responder múltiples preguntas.
+        
+        Args:
+            preguntas: Lista de preguntas
+        
+        Returns:
+            Diccionario {pregunta: respuesta}
+        """
+        resultados = {}
+        for pregunta in preguntas:
+            logger.info(f"Procesando: {pregunta}")
+            resultados[pregunta] = self.responder_pregunta(pregunta)
+        return resultados
 
 
-# Ejemplos de uso
+# ============================================================================
+# EJEMPLO DE USO
+# ============================================================================
+
 if __name__ == "__main__":
-    print("Configuración de LangChain para MinTIC")
+    print("=" * 60)
+    print("SISTEMA OCR - ANÁLISIS CON PYTESSERACT")
     print("=" * 60)
 
-    # 1. Verificar configuración
+    # Verificar configuración
     config = LangChainConfig()
-    print(f"✓ Configuración LangChain lista")
-    print(f"  - Proveedor: {config.provider}")
+    print(f"\n✓ Configuración:")
     print(f"  - Modelo: {config.model}")
-    print(f"  - Temperatura: {config.temperature}")
-    print(f"  - GEMINI_API_KEY configurada: {'Sí' if config.gemini_api_key else 'No'}")
+    print(f"  - API Key: {'Configurada' if config.gemini_api_key else 'NO configurada'}")
 
-    # 2. Cargar contextos RAG
-    rag = RAGContextManager()
-    print(f"\n✓ Contextos RAG cargados: {len(rag.contexto)} temas")
-
-    # 3. Crear multiagente (requiere credenciales según proveedor)
-    multiagente = MultiagenteSiniestros(config)
-    print(f"\n✓ Agentes disponibles:")
-    for nombre, desc in multiagente.listar_agentes().items():
-        print(f"  - {nombre}: {desc}")
-
-    # 4. Ejemplo de análisis (requiere GEMINI_API_KEY)
+    # Probar OCR
     if config.gemini_api_key:
-        print("\n🤖 Ejecutando análisis de ejemplo...")
-        respuesta = multiagente.analizar(
-            "¿En qué jornada ocurren más siniestros?", tipo_agente="temporal"
-        )
-        if respuesta:
-            print(f"\nRespuesta del agente:\n{respuesta}")
+        print("\n🧪 Probando consulta OCR...")
+        analyzer = OCRAnalyzer()
+        respuesta = analyzer.responder_pregunta("Me choqué con otro vehículo, ¿qué debo hacer?")
+        print(f"\n📝 Respuesta:\n{respuesta}")
     else:
-        print("\n⚠️  Para usar análisis, configurar GEMINI_API_KEY en .env")
+        print("\n⚠️  Configura GEMINI_API_KEY para probar el sistema")
