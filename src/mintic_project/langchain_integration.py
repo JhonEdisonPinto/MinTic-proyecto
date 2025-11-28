@@ -17,6 +17,23 @@ logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 load_dotenv()
 
+def get_api_key(key_name: str = "GEMINI_API_KEY") -> str:
+    """Obtener API key desde st.secrets (Streamlit Cloud) o .env (local)."""
+    # Primero intentar desde variables de entorno (ya configuradas por streamlit_app.py)
+    key = os.getenv(key_name, "")
+    if key:
+        return key
+    
+    # Fallback: intentar desde streamlit secrets directamente
+    try:
+        import streamlit as st
+        if key_name in st.secrets:
+            return st.secrets[key_name]
+    except (ImportError, FileNotFoundError, KeyError):
+        pass
+    
+    return ""
+
 
 # ============================================================================
 # FUNCIONES OCR BASADAS EN PYTESSERACT
@@ -145,10 +162,10 @@ def _create_gemini_llm(
     - Manejo de errores mejorado
     - Verificación de API key
     """
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_api_key("GEMINI_API_KEY")
     if not api_key:
         logger.error("❌ GEMINI_API_KEY no encontrada en variables de entorno")
-        logger.error("   Configúrala en tu archivo .env")
+        logger.error("   Configúrala en tu archivo .env o Streamlit secrets")
         return None
 
     try:
@@ -266,8 +283,8 @@ class LangChainConfig:
         self.temperature = temperature
         self.max_tokens = max_tokens
 
-        # Lee la API KEY desde el .env
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        # Lee la API KEY desde el .env o st.secrets
+        self.gemini_api_key = get_api_key("GEMINI_API_KEY")
 
         if provider == "google" and not self.gemini_api_key:
             logger.warning("⚠️  GEMINI_API_KEY no encontrada en el entorno")
