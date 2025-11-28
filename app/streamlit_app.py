@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 import json
+import plotly.express as px
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -603,7 +604,8 @@ def page_reports(modules):
         with col2:
             st.markdown("### Distribución por jornada")
             jornada = df["jornada"].value_counts()
-            st.pie_chart(jornada)
+            fig = px.pie(values=jornada.values, names=jornada.index, title="")
+            st.plotly_chart(fig, use_container_width=True)
 
         col1, col2 = st.columns(2)
 
@@ -624,12 +626,19 @@ def page_reports(modules):
         df["fecha_dt"] = pd.to_datetime(df["fecha"], errors="coerce")
 
         # Por año
+        st.markdown("### Siniestros por año")
         siniestros_por_año = df.groupby(df["fecha_dt"].dt.year).size()
-        st.line_chart(siniestros_por_año, title="Siniestros por año")
+        st.line_chart(siniestros_por_año)
 
         # Por mes
+        st.markdown("### Siniestros por mes")
         siniestros_por_mes = df.groupby(df["fecha_dt"].dt.to_period("M")).size()
-        st.line_chart(siniestros_por_mes, title="Siniestros por mes")
+        # Convertir Period a string para visualización
+        siniestros_por_mes_df = pd.DataFrame({
+            'Fecha': siniestros_por_mes.index.astype(str),
+            'Cantidad': siniestros_por_mes.values
+        })
+        st.line_chart(siniestros_por_mes_df.set_index('Fecha'))
 
     with tabs[2]:
         st.subheader("Distribución geográfica")
