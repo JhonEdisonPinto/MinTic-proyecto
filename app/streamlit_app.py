@@ -135,6 +135,7 @@ def main():
             "📈 Exploración de Datos (CSV)",
             "🔗 Análisis Unificado",
             "📋 Reportes y Estadísticas",
+            "📊 Power BI",
             "ℹ️ Información",
         ],
     )
@@ -182,6 +183,8 @@ def main():
         page_unified_analysis(modules)
     elif page == "📋 Reportes y Estadísticas":
         page_reports(modules)
+    elif page == "📊 Power BI":
+        page_powerbi(modules)
     elif page == "ℹ️ Información":
         page_info()
 
@@ -253,6 +256,28 @@ def page_home(modules):
         **Caché:**
         - `data/ocr_cache/Ley_769_de_2002.txt` — Texto OCR cacheado
         """)
+
+
+# ============================================================================
+# PÁGINA: POWER BI (Publish to web)
+# ============================================================================
+def page_powerbi(modules):
+    """Insertar un informe de Power BI usando Publish-to-web (iframe).
+
+    Nota: Publish-to-web hace el informe público. No usar para datos sensibles.
+    """
+    st.header("📊 Power BI — Informe embebido")
+    st.markdown("Este informe se usa mediante 'Publish to web' (público). Si necesitas integración segura, configura Azure AD y uso de embed tokens.")
+
+    # URL proporcionada por el usuario (Publish to web)
+    embed_url = "https://app.powerbi.com/view?r=eyJrIjoiNWI0N2ZjYzEtNDg3Yy00MWJkLWExNDMtYzQ5MWJjZjFmNWJjIiwidCI6IjU3N2ZjMWQ4LTA5MjItNDU4ZS04N2JmLWVjNGY0NTVlYjYwMCIsImMiOjR9"
+
+    import streamlit.components.v1 as components
+
+    html = f"""
+    <iframe width="100%" height="800" src="{embed_url}" frameborder="0" allowFullScreen="true"></iframe>
+    """
+    components.html(html, height=820)
 
     with tabs[2]:
         try:
