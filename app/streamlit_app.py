@@ -267,7 +267,7 @@ def page_powerbi(modules):
     Nota: Publish-to-web hace el informe público. No usar para datos sensibles.
     """
     st.header("📊 Power BI — Informe embebido")
-    st.markdown("Este informe se usa mediante 'Publish to web' (público). Si necesitas integración segura, configura Azure AD y uso de embed tokens.")
+    st.markdown("Este informe se usa mediante 'Publish to web' (público).")
 
     # URL proporcionada por el usuario (Publish to web)
     embed_url = "https://app.powerbi.com/view?r=eyJrIjoiNWI0N2ZjYzEtNDg3Yy00MWJkLWExNDMtYzQ5MWJjZjFmNWJjIiwidCI6IjU3N2ZjMWQ4LTA5MjItNDU4ZS04N2JmLWVjNGY0NTVlYjYwMCIsImMiOjR9"
