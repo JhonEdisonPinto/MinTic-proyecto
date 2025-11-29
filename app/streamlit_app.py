@@ -156,8 +156,15 @@ def main():
                 else:
                     st.error("No se pudieron descargar/actualizar los datos. Revisa los logs.")
 
-                # Recargar la app para que lea los CSV nuevos
-                st.experimental_rerun()
+                # Recargar la app para que lea los CSV nuevos (seguro)
+                try:
+                    if hasattr(st, "experimental_rerun"):
+                        st.experimental_rerun()
+                    else:
+                        st.info("Datos actualizados. Recarga la página manualmente para ver los cambios.")
+                except Exception:
+                    # En algunos entornos la función puede no estar disponible
+                    st.info("Datos actualizados. Recarga la página manualmente para ver los cambios.")
     except Exception as e:
         data_expander.warning(f"No se pudo iniciar el actualizador de datos: {e}")
 
