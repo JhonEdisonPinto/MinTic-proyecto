@@ -279,28 +279,33 @@ def page_powerbi(modules):
     """
     components.html(html, height=820)
 
-    with tabs[2]:
-        try:
-            df = modules["load_csv_dataset"]("data/siniestros_1_limpio.csv")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total de registros", f"{len(df):,}")
-            
-            with col2:
-                st.metric("Columnas", len(df.columns))
-            
-            with col3:
+    # Mostrar métricas rápidas del dataset (si está disponible)
+    try:
+        df = modules["load_csv_dataset"]("data/siniestros_1_limpio.csv")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Total de registros", f"{len(df):,}")
+
+        with col2:
+            st.metric("Columnas", len(df.columns))
+
+        with col3:
+            if "clase_siniestro" in df.columns:
                 choques = (df["clase_siniestro"] == "CHOQUE").sum()
                 st.metric("Choques", f"{choques:,}")
-            
-            with col4:
+            else:
+                st.metric("Choques", "—")
+
+        with col4:
+            if "zona" in df.columns:
                 zona_urbana = (df["zona"] == "URBANA").sum()
                 st.metric("Zona urbana", f"{zona_urbana:,}")
+            else:
+                st.metric("Zona urbana", "—")
 
-        except Exception as e:
-            st.error(f"Error cargando datos: {e}")
+    except Exception as e:
+        st.warning("No se pudo cargar el CSV de siniestros para mostrar métricas.")
 
 
 # ============================================================================
