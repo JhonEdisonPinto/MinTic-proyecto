@@ -115,7 +115,14 @@ def main():
     load_dotenv()
     
     # Intentar cargar desde st.secrets (Streamlit Cloud) o desde .env (local)
-    gemini_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else os.getenv("GEMINI_API_KEY")
+    try:
+        # Acceder a `st.secrets` puede lanzar StreamlitSecretNotFoundError
+        # si no existe un secrets.toml en las ubicaciones esperadas.
+        gemini_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else os.getenv("GEMINI_API_KEY")
+    except Exception:
+        # Fallback: usar variable de entorno si no hay archivo de secrets
+        gemini_key = os.getenv("GEMINI_API_KEY")
+
     has_gemini = bool(gemini_key)
     
     # Asegurar que la variable esté en el entorno para los módulos
@@ -134,8 +141,7 @@ def main():
             "📄 Análisis de PDF (OCR)",
             "📈 Exploración de Datos (CSV)",
             "🔗 Análisis Unificado",
-            "📋 Reportes y Estadísticas",
-            "📊 Power BI",
+            "📋 Reportes y Power BI",
             "ℹ️ Información",
         ],
     )
@@ -181,10 +187,8 @@ def main():
         page_csv_analysis(modules)
     elif page == "🔗 Análisis Unificado":
         page_unified_analysis(modules)
-    elif page == "📋 Reportes y Estadísticas":
+    elif page == "📋 Reportes y Power BI":
         page_reports(modules)
-    elif page == "📊 Power BI":
-        page_powerbi(modules)
     elif page == "ℹ️ Información":
         page_info()
 
@@ -224,7 +228,7 @@ def page_home(modules):
 
     st.markdown("## 🚀 Guía Rápida")
 
-    tabs = st.tabs(["Tutorial", "Archivos disponibles", "Estadísticas"])
+    tabs = st.tabs(["Tutorial", "Archivos disponibles"])
 
     with tabs[0]:
         st.markdown("""
@@ -645,8 +649,8 @@ def page_unified_analysis(modules):
 # ============================================================================
 
 def page_reports(modules):
-    """Reportes y visualizaciones."""
-    st.header("📋 Reportes y Estadísticas")
+    """Reportes y visualizaciones, además de una pestaña para Power BI embebido."""
+    st.header("📋 Reportes y Power BI")
 
     # Cargar datos
     try:
@@ -655,69 +659,116 @@ def page_reports(modules):
         st.error(f"Error cargando datos: {e}")
         return
 
-    tabs = st.tabs(["📊 Gráficos", "📈 Series temporales", "🗺️ Geográfico"])
+    # Pestañas principales: Reportes locales y Power BI embebido
+    main_tabs = st.tabs(["📋 Reportes y Estadísticas", "📊 Power BI"])
 
-    with tabs[0]:
-        st.subheader("Visualizaciones principales")
+    # --- Pestaña 1: reportes locales (mantener sub-pestañas existentes)
+    with main_tabs[0]:
+        sub_tabs = st.tabs(["📊 Gráficos", "📈 Series temporales", "🗺️ Geográfico"])
 
-        col1, col2 = st.columns(2)
+        with sub_tabs[0]:
+            st.subheader("Visualizaciones principales")
 
-        with col1:
-            st.markdown("### Tipo de siniestro más frecuente")
-            clase_siniestro = df["clase_siniestro"].value_counts().head(10)
-            st.bar_chart(clase_siniestro)
+            col1, col2 = st.columns(2)
 
-        with col2:
-            st.markdown("### Distribución por jornada")
-            jornada = df["jornada"].value_counts()
-            fig = px.pie(values=jornada.values, names=jornada.index, title="")
-            st.plotly_chart(fig, use_container_width=True)
+            with col1:
+                st.markdown("### Tipo de siniestro más frecuente")
+                clase_siniestro = df["clase_siniestro"].value_counts().head(10)
+                st.bar_chart(clase_siniestro)
 
-        col1, col2 = st.columns(2)
+            with col2:
+                st.markdown("### Distribución por jornada")
+                jornada = df["jornada"].value_counts()
+                fig = px.pie(values=jornada.values, names=jornada.index, title="")
+                st.plotly_chart(fig, use_container_width=True)
 
-        with col1:
-            st.markdown("### Zona de ocurrencia")
-            zona = df["zona"].value_counts()
-            st.bar_chart(zona)
+            col1, col2 = st.columns(2)
 
-        with col2:
-            st.markdown("### Género de víctimas")
-            genero = df["genero"].value_counts()
-            st.bar_chart(genero)
+            with col1:
+                st.markdown("### Zona de ocurrencia")
+                zona = df["zona"].value_counts()
+                st.bar_chart(zona)
 
-    with tabs[1]:
-        st.subheader("Tendencias en el tiempo")
+            with col2:
+                st.markdown("### Género de víctimas")
+                genero = df["genero"].value_counts()
+                st.bar_chart(genero)
 
-        # Convertir fecha a datetime
-        df["fecha_dt"] = pd.to_datetime(df["fecha"], errors="coerce")
+        with sub_tabs[1]:
+            st.subheader("Tendencias en el tiempo")
 
-        # Por año
-        st.markdown("### Siniestros por año")
-        siniestros_por_año = df.groupby(df["fecha_dt"].dt.year).size()
-        st.line_chart(siniestros_por_año)
+            # Convertir fecha a datetime
+            df["fecha_dt"] = pd.to_datetime(df["fecha"], errors="coerce")
 
-        # Por mes
-        st.markdown("### Siniestros por mes")
-        siniestros_por_mes = df.groupby(df["fecha_dt"].dt.to_period("M")).size()
-        # Convertir Period a string para visualización
-        siniestros_por_mes_df = pd.DataFrame({
-            'Fecha': siniestros_por_mes.index.astype(str),
-            'Cantidad': siniestros_por_mes.values
-        })
-        st.line_chart(siniestros_por_mes_df.set_index('Fecha'))
+            # Por año
+            st.markdown("### Siniestros por año")
+            siniestros_por_año = df.groupby(df["fecha_dt"].dt.year).size()
+            st.line_chart(siniestros_por_año)
 
-    with tabs[2]:
-        st.subheader("Distribución geográfica")
+            # Por mes
+            st.markdown("### Siniestros por mes")
+            siniestros_por_mes = df.groupby(df["fecha_dt"].dt.to_period("M")).size()
+            # Convertir Period a string para visualización
+            siniestros_por_mes_df = pd.DataFrame({
+                'Fecha': siniestros_por_mes.index.astype(str),
+                'Cantidad': siniestros_por_mes.values
+            })
+            st.line_chart(siniestros_por_mes_df.set_index('Fecha'))
 
-        # Top barrios
-        st.markdown("### Barrios/vías con más siniestros")
-        top_barrios = df["barrios_corregimiento_via"].value_counts().head(15)
-        st.bar_chart(top_barrios)
+        with sub_tabs[2]:
+            st.subheader("Distribución geográfica")
 
-        # Top direcciones
-        st.markdown("### Direcciones más críticas")
-        top_direcciones = df["direccion"].value_counts().head(10)
-        st.dataframe(top_direcciones.reset_index(), use_container_width=True)
+            # Top barrios
+            st.markdown("### Barrios/vías con más siniestros")
+            top_barrios = df["barrios_corregimiento_via"].value_counts().head(15)
+            st.bar_chart(top_barrios)
+
+            # Top direcciones
+            st.markdown("### Direcciones más críticas")
+            top_direcciones = df["direccion"].value_counts().head(10)
+            st.dataframe(top_direcciones.reset_index(), use_container_width=True)
+
+    # --- Pestaña 2: Power BI embebido
+    with main_tabs[1]:
+        st.subheader("Power BI — Informe embebido")
+        st.markdown("Este informe se usa mediante 'Publish to web' (público).")
+
+        # URL por defecto (el usuario puede cambiarla luego si lo desea)
+        embed_url = "https://app.powerbi.com/view?r=eyJrIjoiNWI0N2ZjYzEtNDg3Yy00MWJkLWExNDMtYzQ5MWJjZjFmNWJjIiwidCI6IjU3N2ZjMWQ4LTA5MjItNDU4ZS04N2JmLWVjNGY0NTVlYjYwMCIsImMiOjR9"
+
+        import streamlit.components.v1 as components
+
+        html = f"""
+        <iframe width="100%" height="720" src="{embed_url}" frameborder="0" allowFullScreen="true"></iframe>
+        """
+        components.html(html, height=760)
+
+        # Mostrar métricas rápidas del dataset (si está disponible)
+        try:
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Total de registros", f"{len(df):,}")
+
+            with col2:
+                st.metric("Columnas", len(df.columns))
+
+            with col3:
+                if "clase_siniestro" in df.columns:
+                    choques = (df["clase_siniestro"] == "CHOQUE").sum()
+                    st.metric("Choques", f"{choques:,}")
+                else:
+                    st.metric("Choques", "—")
+
+            with col4:
+                if "zona" in df.columns:
+                    zona_urbana = (df["zona"] == "URBANA").sum()
+                    st.metric("Zona urbana", f"{zona_urbana:,}")
+                else:
+                    st.metric("Zona urbana", "—")
+
+        except Exception:
+            st.warning("No se pudieron calcular métricas rápidas para Power BI.")
 
 
 # ============================================================================
