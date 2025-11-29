@@ -139,6 +139,28 @@ def main():
         ],
     )
 
+    # ------------------------------------------------------------------
+    # CONTROL: Actualizar datasets desde la API
+    # ------------------------------------------------------------------
+    data_expander = st.sidebar.expander("🔁 Datos")
+    data_expander.markdown("Actualizar datasets locales descargándolos desde la API de datos.gov.co")
+    try:
+        if data_expander.button("🔁 Actualizar datos (descargar desde API)"):
+            with st.spinner("Descargando y procesando datos desde la API..."):
+                from src.mintic_project.data_loader import procesar_siniestros
+
+                df1, df2 = procesar_siniestros(directorio_salida="data", limite_registros=50000)
+
+                if (not df1.empty) or (not df2.empty):
+                    st.success(f"Datos actualizados: siniestros_1={len(df1)} filas, siniestros_2={len(df2)} filas")
+                else:
+                    st.error("No se pudieron descargar/actualizar los datos. Revisa los logs.")
+
+                # Recargar la app para que lea los CSV nuevos
+                st.experimental_rerun()
+    except Exception as e:
+        data_expander.warning(f"No se pudo iniciar el actualizador de datos: {e}")
+
     # Módulos cargados
     modules = load_modules()
 
