@@ -194,16 +194,6 @@ def create_pandas_agent(df: pd.DataFrame, model: str = "gemini-2.5-flash", dange
 
     Si `dangerous=False` y el agente requiere ejecución insegura, se devuelve None y se usará un fallback seguro.
     """
-    # Define el system prompt del agente para enriquecer las respuestas
-    agent_prefix = (
-        "Eres un analista de datos experto especializado en siniestros viales. "
-        "Tu objetivo es analizar el DataFrame y proporcionar respuestas completas y estructuradas que incluyan:\n"
-        "1. Respuesta directa a la pregunta\n"
-        "2. Contexto relevante (tendencias, distribuciones, comparaciones)\n"
-        "3. Insights y observaciones clave\n"
-        "4. Recomendaciones prácticas cuando sea aplicable\n\n"
-        "Usa operaciones de Pandas para extraer información precisa y fundamenta tus respuestas con datos concretos."
-    )
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
     except ImportError as e:
@@ -242,8 +232,6 @@ def create_pandas_agent(df: pd.DataFrame, model: str = "gemini-2.5-flash", dange
             df,
             verbose=False,
             allow_dangerous_code=dangerous,
-            prefix=agent_prefix,
-            include_df_in_prompt=False,
         )
         return agent
     except Exception as e:
