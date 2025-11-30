@@ -208,13 +208,14 @@ MIT License - Ver archivo `LICENSE`
 
 ## 📞 Contacto
 
-**Equipo**:
-Jhon Edison Pinto Hincapie 
-Julián Bedoya Palacio 
-Daniel Quintero Castaño
-Paulina Gómez Hincapie
-**Repo**: GitHub MinTic-proyecto  
-**Issues**: GitHub Issues  
+**Equipo:**
+- Jhon Edison Pinto Hincapie
+- Julián Bedoya Palacio
+- Daniel Quintero Castaño
+- Paulina Gómez Hincapie
+
+**Repo:** GitHub MinTic-proyecto  
+**Issues:** GitHub Issues
 
 ---
 
