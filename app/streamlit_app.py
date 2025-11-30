@@ -9,62 +9,31 @@ Una aplicación interactiva y completa para:
 
 import streamlit as st
 import pandas as pd
-import logging
-from pathlib import Path
-from typing import Dict, List, Optional
-import json
 import plotly.express as px
+from pathlib import Path
 
-# Configuración de logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Configurar página de Streamlit
 st.set_page_config(
-    page_title="🚗 Análisis de siniestros viales en Palmira",
+    page_title="Siniestros Viales Palmira",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # Estilos personalizados
-st.markdown(
-    """
-    <style>
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .highlight {
-        background-color: #ffe6e6;
-        padding: 10px;
-        border-radius: 5px;
-        border-left: 4px solid #ff4444;
-    }
-    .success {
-        background-color: #e6ffe6;
-        padding: 10px;
-        border-radius: 5px;
-        border-left: 4px solid #44ff44;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+.metric-card { background-color: #f0f2f6; padding: 16px; border-radius: 8px; }
+</style>
+""", unsafe_allow_html=True)
 
-
-# ============================================================================
-# CACHÉ Y ESTADO DE SESIÓN
-# ============================================================================
 
 @st.cache_resource
 def load_modules():
-    """Cargar módulos una sola vez."""
-    # Asegurar que el root del proyecto esté en sys.path para poder importar `src.*`
+    """Carga y expone módulos del paquete `src.mintic_project` una sola vez."""
     import sys
-    project_root = Path(__file__).resolve().parents[1]
+    from pathlib import Path as _Path
+
+    project_root = _Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
@@ -262,54 +231,7 @@ def page_home(modules):
         """)
 
 
-# ============================================================================
-# PÁGINA: POWER BI (Publish to web)
-# ============================================================================
-def page_powerbi(modules):
-    """Insertar un informe de Power BI usando Publish-to-web (iframe).
-
-    Nota: Publish-to-web hace el informe público. No usar para datos sensibles.
-    """
-    st.header("📊 Power BI — Informe embebido")
-    st.markdown("Este informe se usa mediante 'Publish to web' (público).")
-
-    # URL proporcionada por el usuario (Publish to web)
-    embed_url = "https://app.powerbi.com/view?r=eyJrIjoiNWI0N2ZjYzEtNDg3Yy00MWJkLWExNDMtYzQ5MWJjZjFmNWJjIiwidCI6IjU3N2ZjMWQ4LTA5MjItNDU4ZS04N2JmLWVjNGY0NTVlYjYwMCIsImMiOjR9"
-
-    import streamlit.components.v1 as components
-
-    html = f"""
-    <iframe width="100%" height="800" src="{embed_url}" frameborder="0" allowFullScreen="true"></iframe>
-    """
-    components.html(html, height=820)
-
-    # Mostrar métricas rápidas del dataset (si está disponible)
-    try:
-        df = modules["load_csv_dataset"]("data/siniestros_1_limpio.csv")
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("Total de registros", f"{len(df):,}")
-
-        with col2:
-            st.metric("Columnas", len(df.columns))
-
-        with col3:
-            if "clase_siniestro" in df.columns:
-                choques = (df["clase_siniestro"] == "CHOQUE").sum()
-                st.metric("Choques", f"{choques:,}")
-            else:
-                st.metric("Choques", "—")
-
-        with col4:
-            if "zona" in df.columns:
-                zona_urbana = (df["zona"] == "URBANA").sum()
-                st.metric("Zona urbana", f"{zona_urbana:,}")
-            else:
-                st.metric("Zona urbana", "—")
-
-    except Exception as e:
-        st.warning("No se pudo cargar el CSV de siniestros para mostrar métricas.")
+ 
 
 
 # ============================================================================
@@ -513,6 +435,7 @@ def page_csv_analysis(modules):
 
     with tabs[2]:
         st.subheader("❓ Haz preguntas sobre los datos")
+        st.caption("El asistente puede analizar el DataFrame directamente usando operaciones de Pandas.")
 
         ejemplos_csv = [
             "¿Cuál es el tipo de siniestro más frecuente?",
@@ -520,6 +443,7 @@ def page_csv_analysis(modules):
             "¿Cuáles son las causas principales?",
             "¿Qué género es más afectado?",
             "¿Dónde ocurren más siniestros (urbana o rural)?",
+            "¿Cuántos choques hubo en 2023?",
         ]
 
         col_input, col_examples = st.columns([2, 1])
@@ -531,6 +455,11 @@ def page_csv_analysis(modules):
                 placeholder="¿Cuál es...? ¿Qué tipo...? ¿Dónde...?",
                 key="csv_question",
             )
+            advanced = st.checkbox(
+                "🔧 Modo avanzado (permitir ejecución de código Pandas)",
+                value=False,
+                help="Habilita ejecución directa de código. Usa solo en entornos confiables."
+            )
 
         with col_examples:
             st.markdown("**Ejemplos:**")
@@ -541,18 +470,19 @@ def page_csv_analysis(modules):
             if not pregunta_csv.strip():
                 st.warning("Por favor, escribe una pregunta.")
             else:
-                with st.spinner("⏳ Analizando con Gemini..."):
+                with st.spinner("⏳ Consultando agente de Pandas..."):
                     try:
-                        from src.mintic_project.db_analysis import query_dataset_with_gemini
-                        respuesta = query_dataset_with_gemini(pregunta_csv, df)
-                        st.markdown("### 📊 Análisis")
-                        st.success(respuesta)
+                        from src.mintic_project.db_analysis import query_with_pandas_agent
+                        respuesta = query_with_pandas_agent(pregunta_csv, df, dangerous=advanced)
+                        st.markdown("### 📊 Respuesta")
+                        st.markdown(respuesta)
                     except Exception as e:
                         st.error(f"Error: {e}")
 
     with tabs[3]:
         st.subheader("📋 Datos crudos")
-        st.dataframe(df, use_container_width=True)
+        # Usar width='stretch' para ocupar el ancho disponible (evita error width=None)
+        st.dataframe(df, width='stretch')
 
 
 # ============================================================================
@@ -680,7 +610,7 @@ def page_reports(modules):
                 st.markdown("### Distribución por jornada")
                 jornada = df["jornada"].value_counts()
                 fig = px.pie(values=jornada.values, names=jornada.index, title="")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True)  # Mantener por compatibilidad; si se depreca, remover
 
             col1, col2 = st.columns(2)
 
@@ -726,7 +656,7 @@ def page_reports(modules):
             # Top direcciones
             st.markdown("### Direcciones más críticas")
             top_direcciones = df["direccion"].value_counts().head(10)
-            st.dataframe(top_direcciones.reset_index(), use_container_width=True)
+            st.dataframe(top_direcciones.reset_index(), width='stretch')
 
     # --- Pestaña 2: Power BI embebido
     with main_tabs[1]:

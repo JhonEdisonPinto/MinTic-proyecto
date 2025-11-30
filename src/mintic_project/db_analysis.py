@@ -181,6 +181,189 @@ def analyze_csv_file(csv_path: str, question: str = None, llm=None) -> Dict[str,
     return result
 
 
+# =============================================================================
+# LLM + Pandas Agent: consultas directamente sobre el DataFrame
+# =============================================================================
+def create_pandas_agent(df: pd.DataFrame, model: str = "gemini-2.5-flash", dangerous: bool = False):
+    """Crear un agente de LangChain para consultar el DataFrame con Gemini.
+
+    Parámetros:
+        df: DataFrame objetivo
+        model: nombre del modelo Gemini
+        dangerous: si True habilita `allow_dangerous_code` (ejecución arbitraria). Úsalo solo si confías en el entorno.
+
+    Si `dangerous=False` y el agente requiere ejecución insegura, se devuelve None y se usará un fallback seguro.
+    """
+    # Define el system prompt del agente para enriquecer las respuestas
+    agent_prefix = (
+        "Eres un analista de datos experto especializado en siniestros viales. "
+        "Tu objetivo es analizar el DataFrame y proporcionar respuestas completas y estructuradas que incluyan:\n"
+        "1. Respuesta directa a la pregunta\n"
+        "2. Contexto relevante (tendencias, distribuciones, comparaciones)\n"
+        "3. Insights y observaciones clave\n"
+        "4. Recomendaciones prácticas cuando sea aplicable\n\n"
+        "Usa operaciones de Pandas para extraer información precisa y fundamenta tus respuestas con datos concretos."
+    )
+    try:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+    except ImportError as e:
+        logger.error(f"❌ Falta langchain-google-genai: {e}")
+        return None
+
+    # Verificar dependencia tabulate (log informativo, no bloquear si falta)
+    try:
+        import tabulate  # noqa: F401
+        logger.info(f"tabulate detectado: versión={getattr(tabulate, '__version__', 'desconocida')}")
+    except ImportError:
+        logger.warning("⚠️ 'tabulate' no detectado. Se usará fallback si el agente falla. Ejecuta 'pip install tabulate' para capacidades completas.")
+
+    # Intentar distintas ubicaciones de create_pandas_dataframe_agent
+    create_agent_fn = None
+    for path in [
+        "langchain_experimental.agents",
+        "langchain_experimental.agents.agent_toolkits",
+        "langchain_experimental.openai_minutes.agents",  # fallback hipotético
+    ]:
+        try:
+            module = __import__(path, fromlist=["create_pandas_dataframe_agent"])
+            create_agent_fn = getattr(module, "create_pandas_dataframe_agent")
+            break
+        except Exception:
+            continue
+
+    if not create_agent_fn:
+        logger.error("❌ No se encontró create_pandas_dataframe_agent. Instala/actualiza 'langchain-experimental'.")
+        return None
+
+    try:
+        llm = ChatGoogleGenerativeAI(model=model, convert_system_message_to_human=True)
+        agent = create_agent_fn(
+            llm,
+            df,
+            verbose=False,
+            allow_dangerous_code=dangerous,
+            prefix=agent_prefix,
+            suffix="\n\nProporciona una respuesta completa y estructurada como analista de datos experto.",
+        )
+        return agent
+    except Exception as e:
+        logger.error(f"❌ Error creando agente Pandas: {e}")
+        return None
+
+
+def safe_dataframe_summary(df: pd.DataFrame) -> str:
+    """Generar un resumen seguro del DataFrame para que el LLM pueda razonar sin ejecutar código.
+
+    Incluye: shape, columnas, top 5 de categóricas, describe de numéricas.
+    """
+    lines = []
+    lines.append(f"Shape: {df.shape}")
+    lines.append("Columnas:")
+    for c in df.columns:
+        lines.append(f"  - {c} ({df[c].dtype})")
+    # Numéricas
+    num_cols = df.select_dtypes(include=["number"]).columns
+    if num_cols.any():
+        lines.append("\nEstadísticas numéricas (describe):")
+        desc = df[num_cols].describe().to_string()
+        lines.append(desc)
+    # Categóricas
+    cat_cols = df.select_dtypes(include=["object"]).columns
+    for c in cat_cols:
+        vc = df[c].value_counts().head(5)
+        lines.append(f"\nTop valores {c}:")
+        for val, cnt in vc.items():
+            lines.append(f"  {val}: {cnt}")
+    return "\n".join(lines)[:8000]
+
+
+def _format_structured_answer(title: str, answer: str, notes: Optional[str] = None, preview_df: Optional[pd.DataFrame] = None) -> str:
+    """Formatea una respuesta en secciones cortas y escaneables."""
+    sections = []
+    sections.append(f"### {title}")
+    sections.append(f"**Respuesta:** {answer.strip()}")
+    if preview_df is not None and not preview_df.empty:
+        try:
+            from tabulate import tabulate
+            table = tabulate(preview_df.head(10), headers=preview_df.columns, tablefmt="github")
+            sections.append("**Vista previa:**\n" + table)
+        except Exception:
+            sections.append("**Vista previa:** (instala 'tabulate' para tabla)\n" + preview_df.head(10).to_string())
+    if notes:
+        sections.append(f"**Notas:** {notes.strip()}")
+    return "\n\n".join(sections)
+
+
+def query_with_pandas_agent(question: str, df: pd.DataFrame, dangerous: bool = False) -> str:
+    """Intentar responder usando el agente Pandas; si no se puede, usar fallback seguro.
+
+    Fallback: se construye un contexto con resumen del DF y se pasa al LLM como texto.
+    """
+    agent = create_pandas_agent(df, dangerous=dangerous)
+    if agent is None:
+        # Fallback seguro: usar reporte textual y Gemini normal
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", convert_system_message_to_human=True)
+            context = safe_dataframe_summary(df)
+            prompt = (
+                "Eres un analista de datos experto especializado en siniestros viales. Tu tarea es proporcionar un análisis completo y profesional.\n\n"
+                "INSTRUCCIONES:\n"
+                "1. Responde la pregunta de forma directa y precisa\n"
+                "2. Proporciona contexto relevante: tendencias, patrones, distribuciones\n"
+                "3. Incluye insights clave y observaciones importantes\n"
+                "4. Cuando sea aplicable, ofrece recomendaciones prácticas basadas en los datos\n"
+                "5. Estructura tu respuesta con títulos y secciones claras\n"
+                "6. Usa números concretos y porcentajes cuando estén disponibles\n\n"
+                f"DATOS DEL DATASET:\n{context}\n\n"
+                f"PREGUNTA DEL USUARIO: {question}\n\n"
+                "ANÁLISIS COMPLETO:"
+            )
+            resp = llm.invoke(prompt)
+            raw = getattr(resp, "content", str(resp))[:4000]
+            return _format_structured_answer(
+                title="Análisis del DataFrame (Fallback)",
+                answer=raw,
+                notes=("Consulta ejecutada en modo seguro sin código Pandas. "
+                       "Activa 'modo avanzado' para operaciones directas si es necesario."),
+            )
+        except Exception as e:
+            logger.error(f"❌ Fallback también falló: {e}")
+            return "⚠️  No se pudo responder la pregunta (falta agente y fallback falló)."
+    try:
+        respuesta = agent.invoke({"input": question})
+        # Algunos agentes devuelven dict con 'output' y 'intermediate_steps'
+        out_text = None
+        preview = None
+        if isinstance(respuesta, dict):
+            out_text = str(respuesta.get("output", "")).strip()
+            # Intentar extraer algún dataframe utilizado en pasos intermedios (si disponible)
+            steps = respuesta.get("intermediate_steps") or []
+            for step in steps:
+                try:
+                    # step puede ser tupla (AgentAction, str) o similar
+                    if isinstance(step, tuple) and hasattr(step[0], "tool_input"):
+                        # No confiable; omitir
+                        pass
+                except Exception:
+                    pass
+        else:
+            out_text = str(respuesta).strip()
+
+        if not out_text:
+            out_text = "(Sin salida textual del agente)"
+        return _format_structured_answer(
+            title="Resultado del Agente de Pandas",
+            answer=out_text[:4000],
+            preview_df=preview,
+            notes=("El agente puede ejecutar operaciones de Pandas. "
+                   "Si la respuesta parece ambigua, intenta ser más específico."),
+        )
+    except Exception as e:
+        logger.error(f"❌ Error ejecutando agente Pandas: {e}")
+        return "⚠️  Error ejecutando el agente Pandas. Prueba con otra pregunta o activa modo avanzado."
+
+
 if __name__ == "__main__":
     # Prueba: analizar los CSVs disponibles
     csv_files = [
