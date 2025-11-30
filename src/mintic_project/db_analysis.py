@@ -243,7 +243,7 @@ def create_pandas_agent(df: pd.DataFrame, model: str = "gemini-2.5-flash", dange
             verbose=False,
             allow_dangerous_code=dangerous,
             prefix=agent_prefix,
-            suffix="\n\nProporciona una respuesta completa y estructurada como analista de datos experto.",
+            include_df_in_prompt=False,
         )
         return agent
     except Exception as e:
