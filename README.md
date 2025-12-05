@@ -1,3 +1,9 @@
+# Diapositivas
+
+[🔗 Presentación Pitch](https://drive.google.com/file/d/1UxrT_62kSXWpUoC4rVxlOJicSwcAUfow/view?usp=sharing)
+
+---
+
 # 🚗 Análisis de siniestros viales en Palmira - MinTIC
 
 **Aplicación web profesional para analizar siniestros viales en Palmira, Colombia**
