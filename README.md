@@ -1,3 +1,9 @@
+# Diapositivas
+
+[🔗 Presentación Pitch](https://drive.google.com/file/d/1UxrT_62kSXWpUoC4rVxlOJicSwcAUfow/view?usp=sharing)
+
+---
+
 # 🚗 Análisis de siniestros viales en Palmira - MinTIC
 
 **Aplicación web profesional para analizar siniestros viales en Palmira, Colombia**
@@ -216,9 +222,14 @@ MIT License - Ver archivo `LICENSE`
 
 ## 📞 Contacto
 
-**Equipo**: MinTIC - Proyecto Colaborativo  
-**Repo**: GitHub MinTic-proyecto  
-**Issues**: GitHub Issues  
+**Equipo:**
+- Jhon Edison Pinto Hincapie
+- Julián Bedoya Palacio
+- Daniel Quintero Castaño
+- Paulina Gómez Hincapie
+
+**Repo:** GitHub MinTic-proyecto  
+**Issues:** GitHub Issues
 
 ---
 
