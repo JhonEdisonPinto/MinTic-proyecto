@@ -230,13 +230,24 @@ def main():
         # Selector de dataset activo
         datasets_list = list(manager.list_datasets().keys())
         if datasets_list:
+            # Añadir etiqueta visual a predeterminados
+            datasets_labels = []
+            for ds_name in datasets_list:
+                if manager.is_default(ds_name):
+                    datasets_labels.append(f"🛡️ {ds_name} (Predeterminado)")
+                else:
+                    datasets_labels.append(f"📦 {ds_name}")
+            
             current_idx = datasets_list.index(manager.active_dataset) if manager.active_dataset in datasets_list else 0
-            selected = st.selectbox(
+            selected_label = st.selectbox(
                 "Dataset activo:",
-                datasets_list,
+                datasets_labels,
                 index=current_idx,
                 key="dataset_selector"
             )
+            
+            # Extraer nombre real del dataset
+            selected = datasets_list[datasets_labels.index(selected_label)]
             
             if selected != manager.active_dataset:
                 manager.set_active(selected)
@@ -278,10 +289,10 @@ def main():
         
         # Obtener lista de datasets eliminables (excluir predeterminados)
         datasets_dict = manager.list_datasets()
-        defaults = list(DatasetManager.DEFAULTS.keys())
-        eliminables = {k: v for k, v in datasets_dict.items() if k not in defaults}
+        eliminables = {k: v for k, v in datasets_dict.items() if not manager.is_default(k)}
         
         if eliminables:
+            st.caption(f"✅ {len(eliminables)} dataset(s) personalizado(s)")
             dataset_to_delete = st.selectbox(
                 "Selecciona dataset a eliminar:",
                 list(eliminables.keys()),
@@ -293,12 +304,13 @@ def main():
                     st.success(f"✓ Dataset '{dataset_to_delete}' eliminado")
                     # Si era el activo, cambiar a uno predeterminado
                     if manager.active_dataset == dataset_to_delete:
+                        defaults = list(manager.get_defaults().keys())
                         manager.set_active(defaults[0] if defaults else list(datasets_dict.keys())[0])
                     st.rerun()
                 else:
                     st.error("❌ No se puede eliminar dataset predeterminado")
         else:
-            st.caption("No hay datasets personalizados para eliminar")
+            st.info("🛡️ Solo hay datasets predeterminados (no eliminables)")
         
         st.markdown("---")
         
@@ -1160,7 +1172,7 @@ def page_info():
 
     with tabs[0]:
         st.markdown("""
-        ## 🚗 Análisis Inteligente de Siniestros Viales Colombia
+        ## 🚗 Análisis Inteligente de Siniestros Viales en Palmira y Colombia
 
         Plataforma desarrollada como parte del **proyecto MinTIC** para analizar
         datos de siniestros viales a nivel nacional de Colombia.

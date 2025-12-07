@@ -142,6 +142,25 @@ class DatasetManager:
         logger.info(f"✓ Dataset personalizado eliminado: {name}")
         return True
     
+    def is_default(self, name: str) -> bool:
+        """Verificar si un dataset es predeterminado.
+        
+        Args:
+            name: Nombre del dataset
+            
+        Returns:
+            True si es predeterminado, False si no
+        """
+        return name in self.DEFAULTS
+    
+    def get_defaults(self) -> dict:
+        """Obtener diccionario de datasets predeterminados.
+        
+        Returns:
+            Dict con {nombre: url} de datasets predeterminados
+        """
+        return self.DEFAULTS.copy()
+    
     def set_active(self, name: str) -> bool:
         """Establecer dataset activo."""
         if name not in self.datasets:
