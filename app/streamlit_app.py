@@ -233,7 +233,7 @@ def main():
             # Añadir etiqueta visual a predeterminados
             datasets_labels = []
             for ds_name in datasets_list:
-                if manager.is_default(ds_name):
+                if ds_name in DatasetManager.DEFAULTS:
                     datasets_labels.append(f"🛡️ {ds_name} (Predeterminado)")
                 else:
                     datasets_labels.append(f"📦 {ds_name}")
@@ -289,7 +289,7 @@ def main():
         
         # Obtener lista de datasets eliminables (excluir predeterminados)
         datasets_dict = manager.list_datasets()
-        eliminables = {k: v for k, v in datasets_dict.items() if not manager.is_default(k)}
+        eliminables = {k: v for k, v in datasets_dict.items() if k not in DatasetManager.DEFAULTS}
         
         if eliminables:
             st.caption(f"✅ {len(eliminables)} dataset(s) personalizado(s)")
@@ -304,7 +304,7 @@ def main():
                     st.success(f"✓ Dataset '{dataset_to_delete}' eliminado")
                     # Si era el activo, cambiar a uno predeterminado
                     if manager.active_dataset == dataset_to_delete:
-                        defaults = list(manager.get_defaults().keys())
+                        defaults = list(DatasetManager.DEFAULTS.keys())
                         manager.set_active(defaults[0] if defaults else list(datasets_dict.keys())[0])
                     st.rerun()
                 else:
