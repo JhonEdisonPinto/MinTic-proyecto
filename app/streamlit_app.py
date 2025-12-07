@@ -164,7 +164,7 @@ def main():
     # Encabezado
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("🚗 Análisis de Siniestros Viales Colombia")
+        st.title("🚗 Análisis de Siniestros Viales en Palmira y Colombia")
         st.markdown("**MinTIC - Proyecto Colaborativo 2025**")
         st.markdown(
             "🌐 Plataforma nacional multi-ciudad con IA",
