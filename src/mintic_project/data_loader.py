@@ -1,15 +1,20 @@
-"""Módulo mínimo para descargar y limpiar datasets de siniestros.
+"""Módulo para descargar, limpiar y gestionar múltiples datasets de siniestros.
 
-Este loader es intencionalmente conservador: sólo elimina filas vacías
-y opcionalmente filas con cualquier NULL si se solicita. Además corrige
-comas por punto en columnas de latitud/longitud cuando aparezcan.
+Funcionalidades:
+- Descargar datasets predeterminados de datos.gov.co
+- Agregar nuevos datasets dinámicamente (URL + nombre personalizado)
+- Limpieza automática de todos los datasets
+- Persistencia de configuración en JSON
+- Selección de dataset activo
 
 El objetivo es mantener el formato lo más cercano posible al original
 para consumo por herramientas como Power BI.
 """
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Dict, List, Optional
 import logging
+import json
+from datetime import datetime
 
 import pandas as pd
 
@@ -17,54 +22,213 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class SiniestrosAPIClient:
-    """Cliente sencillo para descargar datasets desde datos.gov.co.
-
-    Mantiene la misma interfaz que la versión anterior para compatibilidad.
+class DatasetManager:
+    """Gestiona múltiples datasets: predeterminados y personalizados.
+    
+    Funcionalidades:
+    - Lista de datasets predeterminados (Palmira 1 y 2)
+    - Agregar datasets personalizados con nombre y URL
+    - Persistencia en archivo JSON
+    - Marcar dataset activo
     """
+    
+    # Datasets predeterminados
+    DEFAULTS = {
+        "siniestros_palmira_2022-2024": "https://www.datos.gov.co/resource/sjpx-eqfp.json",
+        "siniestros_palmira_2021": "https://www.datos.gov.co/resource/xx6f-f84h.json",
+    }
+    
+    def __init__(self, config_file: str = "data/datasets_config.json"):
+        self.config_file = Path(config_file)
+        self.datasets = {}
+        self.active_dataset = None
+        self._load_config()
+    
+    def _load_config(self):
+        """Cargar configuración desde JSON o inicializar con defaults."""
+        if self.config_file.exists():
+            try:
+                with open(self.config_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.datasets = data.get("datasets", {})
+                    self.active_dataset = data.get("active_dataset")
+                    logger.info(f"✓ Configuración cargada: {len(self.datasets)} datasets")
+            except Exception as e:
+                logger.warning(f"Error cargando config, usando defaults: {e}")
+                self.datasets = self.DEFAULTS.copy()
+                self.active_dataset = list(self.DEFAULTS.keys())[0]
+        else:
+            self.datasets = self.DEFAULTS.copy()
+            self.active_dataset = list(self.DEFAULTS.keys())[0]
+        
+        # ROBUSTEZ: Garantizar que los datasets predeterminados siempre existan
+        for name, url in self.DEFAULTS.items():
+            if name not in self.datasets:
+                logger.warning(f"⚠️ Restaurando dataset predeterminado faltante: {name}")
+                self.datasets[name] = url
+        
+        # Validar que el dataset activo exista
+        if self.active_dataset not in self.datasets:
+            logger.warning(f"⚠️ Dataset activo inválido, usando predeterminado")
+            self.active_dataset = list(self.DEFAULTS.keys())[0]
+            self._save_config()
+        
+        # Guardar si hubo cambios
+        if not self.config_file.exists() or any(name not in data.get("datasets", {}) for name in self.DEFAULTS):
+            self._save_config()
+    
+    def _save_config(self):
+        """Guardar configuración en JSON con protección de datasets predeterminados."""
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # ROBUSTEZ: Asegurar que los defaults estén presentes antes de guardar
+        for name, url in self.DEFAULTS.items():
+            if name not in self.datasets:
+                logger.warning(f"⚠️ Agregando dataset predeterminado antes de guardar: {name}")
+                self.datasets[name] = url
+        
+        data = {
+            "datasets": self.datasets,
+            "active_dataset": self.active_dataset,
+            "last_updated": datetime.now().isoformat()
+        }
+        try:
+            with open(self.config_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info(f"✓ Configuración guardada en {self.config_file}")
+        except Exception as e:
+            logger.error(f"Error guardando configuración: {e}")
+    
+    def add_dataset(self, name: str, url: str) -> bool:
+        """Agregar nuevo dataset personalizado."""
+        if name in self.datasets:
+            logger.warning(f"Dataset '{name}' ya existe")
+            return False
+        
+        self.datasets[name] = url
+        self._save_config()
+        logger.info(f"✓ Dataset agregado: {name}")
+        return True
+    
+    def remove_dataset(self, name: str) -> bool:
+        """Eliminar dataset (solo personalizados, no defaults).
+        
+        PROTECCIÓN: Los datasets predeterminados NO pueden ser eliminados.
+        
+        Args:
+            name: Nombre del dataset a eliminar
+            
+        Returns:
+            bool: True si se eliminó correctamente, False si no se pudo eliminar
+        """
+        # ROBUSTEZ: Prevenir eliminación de datasets predeterminados
+        if name in self.DEFAULTS:
+            logger.warning(f"🛡️ PROTECCIÓN: No se puede eliminar dataset predeterminado '{name}'")
+            return False
+        
+        if name not in self.datasets:
+            logger.warning(f"Dataset '{name}' no existe")
+            return False
+        
+        # Eliminar dataset personalizado
+        del self.datasets[name]
+        
+        # Si era el activo, cambiar al primer predeterminado
+        if self.active_dataset == name:
+            self.active_dataset = list(self.DEFAULTS.keys())[0]
+            logger.info(f"📌 Dataset activo cambiado a: {self.active_dataset}")
+        
+        self._save_config()
+        logger.info(f"✓ Dataset personalizado eliminado: {name}")
+        return True
+    
+    def set_active(self, name: str) -> bool:
+        """Establecer dataset activo."""
+        if name not in self.datasets:
+            logger.warning(f"Dataset no encontrado: {name}")
+            return False
+        
+        self.active_dataset = name
+        self._save_config()
+        logger.info(f"✓ Dataset activo: {name}")
+        return True
+    
+    def get_active_url(self) -> Optional[str]:
+        """Obtener URL del dataset activo."""
+        if self.active_dataset and self.active_dataset in self.datasets:
+            return self.datasets[self.active_dataset]
+        return None
+    
+    def list_datasets(self) -> Dict[str, str]:
+        """Listar todos los datasets disponibles."""
+        return self.datasets.copy()
+    
+    def get_dataset_info(self, name: str) -> Dict:
+        """Información del dataset."""
+        return {
+            "name": name,
+            "url": self.datasets.get(name),
+            "is_default": name in self.DEFAULTS,
+            "is_active": name == self.active_dataset
+        }
 
-    API_SINIESTROS_1 = "https://www.datos.gov.co/resource/sjpx-eqfp.json"
-    API_SINIESTROS_2 = "https://www.datos.gov.co/resource/xx6f-f84h.json"
+
+
+
+
+class SiniestrosAPIClient:
+    """Cliente para descargar datasets desde URLs de datos.gov.co.
+    
+    Ahora soporta URLs dinámicas además de las predeterminadas.
+    """
 
     def __init__(self, session=None, timeout: int = 30):
         self.timeout = timeout
-        # importar requests bajo demanda para evitar fallos si no está instalado
         try:
             import requests
-
             self.session = session or requests.Session()
         except Exception:
             self.session = session
 
-    def descargar_dataset_1(self, limit: int = 50000) -> pd.DataFrame:
+    def descargar_desde_url(self, url: str, limit: int = 50000) -> pd.DataFrame:
+        """Descargar dataset desde cualquier URL de datos.gov.co."""
+        # Limpiar URL: si tiene query params, usar solo la base
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(url)
+        
+        # Si la URL ya tiene $query o parámetros, extraer solo la base
+        base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        if not base_url.endswith('.json'):
+            base_url = base_url.rstrip('/') + '.json'
+        
+        # Parámetros estándar de paginación
         params = {"$limit": limit, "$offset": 0}
-        logger.info(f"Descargando dataset 1 (límite={limit})...")
+        
+        logger.info(f"Descargando desde {base_url} (límite={limit})...")
+        
         if not self.session:
-            logger.warning("No hay session HTTP disponible; espere un DataFrame vacío.")
+            logger.warning("No hay session HTTP disponible.")
             return pd.DataFrame()
+        
         try:
-            r = self.session.get(self.API_SINIESTROS_1, params=params, timeout=self.timeout)
+            r = self.session.get(base_url, params=params, timeout=self.timeout)
             r.raise_for_status()
             data = r.json()
-            return pd.DataFrame(data)
+            df = pd.DataFrame(data)
+            logger.info(f"✓ Descargados {len(df)} registros")
+            return df
         except Exception as e:
-            logger.error(f"Error descargando dataset 1: {e}")
+            logger.error(f"Error descargando desde {base_url}: {e}")
             return pd.DataFrame()
 
+    # Mantener métodos legacy para compatibilidad
+    def descargar_dataset_1(self, limit: int = 50000) -> pd.DataFrame:
+        url = "https://www.datos.gov.co/resource/sjpx-eqfp.json"
+        return self.descargar_desde_url(url, limit)
+
     def descargar_dataset_2(self, limit: int = 50000) -> pd.DataFrame:
-        params = {"$limit": limit, "$offset": 0}
-        logger.info(f"Descargando dataset 2 (límite={limit})...")
-        if not self.session:
-            logger.warning("No hay session HTTP disponible; espere un DataFrame vacío.")
-            return pd.DataFrame()
-        try:
-            r = self.session.get(self.API_SINIESTROS_2, params=params, timeout=self.timeout)
-            r.raise_for_status()
-            data = r.json()
-            return pd.DataFrame(data)
-        except Exception as e:
-            logger.error(f"Error descargando dataset 2: {e}")
-            return pd.DataFrame()
+        url = "https://www.datos.gov.co/resource/xx6f-f84h.json"
+        return self.descargar_desde_url(url, limit)
 
 
 class LimpiadordeDatos:
@@ -180,9 +344,44 @@ class LimpiadordeDatos:
 
 
 
-def procesar_siniestros(directorio_salida: str = "data", limite_registros: int = 50000, drop_any: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Descargar (si es posible) y guardar datasets limpios con la limpieza mínima.
+def descargar_y_limpiar_dataset(url: str, nombre: str, directorio_salida: str = "data", limite: int = 50000, drop_any: bool = False) -> pd.DataFrame:
+    """Descargar y limpiar un dataset individual desde su URL.
+    
+    Args:
+        url: URL del endpoint de datos.gov.co
+        nombre: Nombre identificador del dataset
+        directorio_salida: Carpeta donde guardar el CSV limpio
+        limite: Límite de registros a descargar
+        drop_any: Si True, elimina filas con cualquier NULL
+    
+    Returns:
+        DataFrame limpio
+    """
+    Path(directorio_salida).mkdir(parents=True, exist_ok=True)
+    
+    cliente = SiniestrosAPIClient()
+    df = cliente.descargar_desde_url(url, limit=limite)
+    
+    if df.empty:
+        logger.warning(f"No se descargaron datos para '{nombre}'")
+        return pd.DataFrame()
+    
+    # Limpiar
+    limpiador = LimpiadordeDatos()
+    df_limpio = limpiador.limpiar_dataset(df, nombre, drop_any=drop_any)
+    
+    # Guardar
+    nombre_archivo = nombre.lower().replace(" ", "_").replace("-", "_") + ".csv"
+    ruta = Path(directorio_salida) / nombre_archivo
+    df_limpio.to_csv(ruta, index=False, encoding="utf-8")
+    logger.info(f"✓ Dataset guardado: {ruta} ({len(df_limpio)} filas)")
+    
+    return df_limpio
 
+
+def procesar_siniestros(directorio_salida: str = "data", limite_registros: int = 50000, drop_any: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Descargar y guardar datasets predeterminados (legacy, mantener compatibilidad).
+    
     Args:
         directorio_salida: carpeta donde se guardarán los CSV
         limite_registros: límite para la descarga
@@ -190,38 +389,17 @@ def procesar_siniestros(directorio_salida: str = "data", limite_registros: int =
     """
     Path(directorio_salida).mkdir(parents=True, exist_ok=True)
 
-    cliente = SiniestrosAPIClient()
-    df1 = cliente.descargar_dataset_1(limit=limite_registros)
-    df2 = cliente.descargar_dataset_2(limit=limite_registros)
+    # Usar el nuevo gestor para obtener URLs
+    manager = DatasetManager(config_file=f"{directorio_salida}/datasets_config.json")
+    datasets_info = manager.list_datasets()
+    
+    # Descargar primeros dos datasets (compatibilidad con código existente)
+    df_list = []
+    for nombre, url in list(datasets_info.items())[:2]:
+        df = descargar_y_limpiar_dataset(url, nombre, directorio_salida, limite_registros, drop_any)
+        df_list.append(df)
+    
+    df1 = df_list[0] if len(df_list) > 0 else pd.DataFrame()
+    df2 = df_list[1] if len(df_list) > 1 else pd.DataFrame()
 
-    if df1.empty and df2.empty:
-        logger.error("No se pudieron descargar datasets; asegúrate de tener conexión o usa archivos locales.")
-
-    limpiador = LimpiadordeDatos()
-    if not df1.empty:
-        df1_limpio = limpiador.limpiar_dataset(df1, "Dataset 1 (Siniestros Viales)", drop_any=drop_any)
-        ruta1 = Path(directorio_salida) / "siniestros_1_limpio.csv"
-        df1_limpio.to_csv(ruta1, index=False, encoding="utf-8")
-        logger.info(f"Guardado {ruta1} ({len(df1_limpio)} filas)")
-    else:
-        df1_limpio = pd.DataFrame()
-
-    if not df2.empty:
-        df2_limpio = limpiador.limpiar_dataset(df2, "Dataset 2 (Gravedad/Víctimas)", drop_any=drop_any)
-        ruta2 = Path(directorio_salida) / "siniestros_2_limpio.csv"
-        df2_limpio.to_csv(ruta2, index=False, encoding="utf-8")
-        logger.info(f"Guardado {ruta2} ({len(df2_limpio)} filas)")
-    else:
-        df2_limpio = pd.DataFrame()
-
-    # Guardar reporte simple
-    try:
-        reporte_path = Path(directorio_salida) / "reporte_limpieza.txt"
-        with open(reporte_path, "w", encoding="utf-8") as f:
-            for k, v in limpiador.reporte.items():
-                f.write(f"{k}: iniciales={v['iniciales']}, finales={v['finales']}, %={v['porcentaje']:.1f}\n")
-        logger.info(f"Reporte guardado en {reporte_path}")
-    except Exception as e:
-        logger.warning(f"No se pudo guardar reporte: {e}")
-
-    return df1_limpio, df2_limpio
+    return df1, df2

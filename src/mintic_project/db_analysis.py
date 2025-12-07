@@ -19,6 +19,68 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def check_data_quality(df: pd.DataFrame) -> Dict[str, Any]:
+    """Evaluar calidad del dataset con métricas detalladas.
+    
+    Retorna:
+        - score: porcentaje de calidad general (0-100)
+        - completeness: % de celdas no nulas
+        - duplicates: cantidad de filas duplicadas
+        - outliers: columnas con posibles outliers
+        - issues: lista de problemas detectados
+    """
+    total_cells = df.shape[0] * df.shape[1]
+    non_null_cells = df.count().sum()
+    completeness = (non_null_cells / total_cells * 100) if total_cells > 0 else 0
+    
+    duplicates = df.duplicated().sum()
+    
+    issues = []
+    outliers = {}
+    
+    # Detectar outliers en columnas numéricas (IQR)
+    numeric_cols = df.select_dtypes(include=["number"]).columns
+    for col in numeric_cols:
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        outlier_count = ((df[col] < (Q1 - 1.5 * IQR)) | (df[col] > (Q3 + 1.5 * IQR))).sum()
+        if outlier_count > 0:
+            outliers[col] = int(outlier_count)
+    
+    # Issues detectados
+    if completeness < 90:
+        issues.append(f"Completitud baja: {completeness:.1f}%")
+    if duplicates > 0:
+        issues.append(f"{duplicates} filas duplicadas")
+    if outliers:
+        issues.append(f"{len(outliers)} columnas con outliers")
+    
+    # Columnas con muchos nulos
+    null_pct = (df.isnull().sum() / len(df) * 100)
+    high_null_cols = null_pct[null_pct > 20].to_dict()
+    if high_null_cols:
+        issues.append(f"{len(high_null_cols)} columnas con >20% nulos")
+    
+    # Score ponderado
+    score = (
+        completeness * 0.5 +  # 50% peso
+        (100 - (duplicates / len(df) * 100)) * 0.3 +  # 30% peso
+        (100 - min(len(outliers) / max(len(numeric_cols), 1) * 100, 100)) * 0.2  # 20% peso
+    )
+    
+    return {
+        "score": round(score, 1),
+        "completeness": round(completeness, 1),
+        "duplicates": duplicates,
+        "outliers": outliers,
+        "high_null_columns": {k: round(v, 1) for k, v in high_null_cols.items()},
+        "issues": issues,
+        "total_rows": len(df),
+        "total_columns": len(df.columns)
+    }
+
+
 def load_csv_dataset(csv_path: str) -> pd.DataFrame:
     """Cargar CSV y devolver DataFrame con información sobre carga."""
     path = Path(csv_path)
@@ -70,116 +132,162 @@ def extract_dataset_metadata(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def generate_dataset_report(df: pd.DataFrame, metadata: Optional[Dict] = None) -> str:
-    """Genera un reporte textual del dataset para pasarlo a Gemini."""
+    """Genera un reporte textual robusto y detallado del dataset."""
     if metadata is None:
         metadata = extract_dataset_metadata(df)
     
     rows, cols = metadata["shape"]
-    report = f"""
-=== REPORTE DEL DATASET ===
-
-📊 DIMENSIONES:
-- Filas: {rows:,}
-- Columnas: {cols}
-
-📋 COLUMNAS Y TIPOS:
-"""
     
-    for col, dtype in metadata["dtypes"].items():
+    # Calcular métricas de calidad
+    quality = check_data_quality(df)
+    
+    # Detectar tipos de columnas
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
+    datetime_cols = df.select_dtypes(include=["datetime"]).columns.tolist()
+    
+    # Memoria utilizada
+    memory_mb = df.memory_usage(deep=True).sum() / (1024 ** 2)
+    
+    report = f"""
+╔═══════════════════════════════════════════════════════════════════════╗
+║                   📊 REPORTE DETALLADO DEL DATASET                    ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+🎯 CALIDAD DE DATOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • Score de Calidad:        {quality['score']}% {'🟢' if quality['score'] >= 80 else '🟡' if quality['score'] >= 60 else '🔴'}
+  • Completitud:             {quality['completeness']}%
+  • Filas Duplicadas:        {quality['duplicates']:,}
+  • Columnas con Outliers:   {len(quality['outliers'])}
+
+📐 DIMENSIONES Y ESTRUCTURA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • Total de Filas:          {rows:,}
+  • Total de Columnas:       {cols}
+  • Celdas Totales:          {rows * cols:,}
+  • Memoria Utilizada:       {memory_mb:.2f} MB
+  • Columnas Numéricas:      {len(numeric_cols)}
+  • Columnas Categóricas:    {len(categorical_cols)}
+  • Columnas Fecha/Hora:     {len(datetime_cols)}
+
+📋 DETALLE DE COLUMNAS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+    
+    # Tabla de columnas con más información
+    report += "\n\n  {:<30} | {:<12} | {:>8} | {:>10} | {:>10}".format(
+        "Columna", "Tipo", "Nulos%", "Únicos", "Cardinalidad"
+    )
+    report += "\n  " + "─" * 88
+    
+    for col in df.columns:
+        dtype = str(metadata["dtypes"][col])
         missing = metadata["missing_percent"].get(col, 0)
         unique = metadata["unique_counts"].get(col, 0)
-        report += f"  • {col:<35} | Tipo: {dtype:<10} | Nulos: {missing:.1f}% | Únicos: {unique}\n"
+        cardinality = (unique / rows * 100) if rows > 0 else 0
+        
+        # Indicador de tipo
+        if 'int' in dtype or 'float' in dtype:
+            tipo_icon = "🔢"
+        elif 'object' in dtype:
+            tipo_icon = "📝"
+        elif 'datetime' in dtype:
+            tipo_icon = "📅"
+        else:
+            tipo_icon = "❓"
+        
+        report += f"\n  {col:<30} | {tipo_icon} {dtype:<9} | {missing:>7.1f}% | {unique:>10,} | {cardinality:>9.1f}%"
     
-    # Estadísticas numéricas
+    # Estadísticas numéricas detalladas
     if metadata["numeric_stats"]:
-        report += "\n📈 ESTADÍSTICAS NUMÉRICAS:\n"
+        report += "\n\n📈 ESTADÍSTICAS NUMÉRICAS DETALLADAS:\n"
+        report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        
         for col, stats in metadata["numeric_stats"].items():
             if stats["min"] is not None:
-                report += f"  • {col:<35} | Min: {stats['min']:<10.2f} | Max: {stats['max']:<10.2f} | Promedio: {stats['mean']:<10.2f}\n"
+                rango = stats['max'] - stats['min']
+                outlier_count = quality['outliers'].get(col, 0)
+                
+                report += f"\n  🔢 {col}:\n"
+                report += f"     • Mínimo:      {stats['min']:>15,.2f}\n"
+                report += f"     • Máximo:      {stats['max']:>15,.2f}\n"
+                report += f"     • Promedio:    {stats['mean']:>15,.2f}\n"
+                report += f"     • Mediana:     {stats['median']:>15,.2f}\n"
+                report += f"     • Rango:       {rango:>15,.2f}\n"
+                if outlier_count > 0:
+                    report += f"     • ⚠️ Outliers:  {outlier_count:>15,} valores atípicos\n"
     
-    # Muestras categóricas
+    # Análisis categórico mejorado
     if metadata["categorical_samples"]:
-        report += "\n🏷️  VALORES FRECUENTES (CATEGÓRICOS):\n"
+        report += "\n\n🏷️  ANÁLISIS DE VARIABLES CATEGÓRICAS:\n"
+        report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        
         for col, top_values in metadata["categorical_samples"].items():
-            report += f"  • {col}:\n"
-            for val, count in list(top_values.items())[:3]:
-                report += f"      - {val}: {count} registros\n"
+            total_in_col = df[col].notna().sum()
+            report += f"\n  📝 {col} ({metadata['unique_counts'][col]} valores únicos):\n"
+            
+            for i, (val, count) in enumerate(list(top_values.items())[:5], 1):
+                pct = (count / total_in_col * 100) if total_in_col > 0 else 0
+                bar_length = int(pct / 2)  # Barra visual
+                bar = "█" * bar_length
+                report += f"     {i}. {str(val)[:40]:<40} │ {bar:<50} {count:>7,} ({pct:>5.1f}%)\n"
+    
+    # Problemas detectados
+    if quality['issues']:
+        report += "\n\n⚠️  PROBLEMAS DETECTADOS:\n"
+        report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        for issue in quality['issues']:
+            report += f"  ❌ {issue}\n"
+    
+    # Columnas con alta proporción de nulos
+    if quality['high_null_columns']:
+        report += "\n\n🕳️  COLUMNAS CON ALTA PROPORCIÓN DE NULOS (>20%):\n"
+        report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        for col, pct in sorted(quality['high_null_columns'].items(), key=lambda x: x[1], reverse=True):
+            report += f"  • {col:<35} {pct:>6.1f}% nulos\n"
+    
+    # Recomendaciones
+    report += "\n\n💡 RECOMENDACIONES:\n"
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    
+    recommendations = []
+    
+    if quality['duplicates'] > 0:
+        recommendations.append(f"  ✓ Eliminar {quality['duplicates']} filas duplicadas")
+    
+    if quality['high_null_columns']:
+        recommendations.append(f"  ✓ Analizar {len(quality['high_null_columns'])} columnas con >20% nulos (imputar o eliminar)")
+    
+    if quality['outliers']:
+        recommendations.append(f"  ✓ Revisar outliers en {len(quality['outliers'])} columnas numéricas")
+    
+    if quality['score'] < 80:
+        recommendations.append("  ✓ Realizar limpieza profunda para mejorar calidad general")
+    
+    # Recomendaciones por tipo de columna
+    low_cardinality = [col for col, cnt in metadata['unique_counts'].items() 
+                       if cnt < 10 and col in categorical_cols]
+    if low_cardinality:
+        recommendations.append(f"  ✓ Considerar codificar {len(low_cardinality)} columnas de baja cardinalidad")
+    
+    high_cardinality = [col for col, cnt in metadata['unique_counts'].items() 
+                        if cnt > rows * 0.8 and col in categorical_cols]
+    if high_cardinality:
+        recommendations.append(f"  ✓ Evaluar {len(high_cardinality)} columnas de alta cardinalidad (posibles IDs)")
+    
+    if recommendations:
+        report += "\n".join(recommendations)
+    else:
+        report += "  ✅ Dataset en excelente estado, no se detectaron problemas críticos\n"
+    
+    report += "\n\n" + "═" * 75 + "\n"
     
     return report
 
 
-def query_dataset_with_gemini(question: str, df: pd.DataFrame, llm=None) -> str:
-    """Responde una pregunta sobre un dataset usando Gemini."""
-    from src.mintic_project.langchain_integration import LangChainConfig
-    
-    if llm is None:
-        config = LangChainConfig()
-        llm = config.crear_llm()
-        if llm is None:
-            return "⚠️  No hay LLM disponible. Configura GEMINI_API_KEY."
-    
-    logger.info(f"❓ Pregunta sobre datos: {question}")
-    
-    # Generar reporte del dataset
-    metadata = extract_dataset_metadata(df)
-    report = generate_dataset_report(df, metadata)
-    
-    # Crear prompt
-    prompt = f"""Eres un experto en análisis de datos. Se te proporciona un reporte detallado de un dataset con información sobre siniestros viales.
+# query_dataset_with_gemini reemplazado por query_with_pandas_agent (línea ~284)
 
-REPORTE DEL DATASET:
-{report}
-
-PREGUNTA: {question}
-
-INSTRUCCIONES:
-- Responde basándote en el reporte del dataset
-- Si necesitas información más detallada, puedes hacer suposiciones razonables basadas en los datos
-- Sé preciso y proporciona números cuando sea posible
-- Si la pregunta no puede responderse con la información disponible, indícalo claramente
-"""
-    
-    try:
-        logger.info("⏳ Generando respuesta con Gemini...")
-        response = llm.invoke(prompt)
-        
-        if hasattr(response, "content"):
-            return response.content
-        return str(response)
-    except Exception as e:
-        logger.error(f"❌ Error generando respuesta: {e}")
-        return "⚠️  Error al generar la respuesta."
-
-
-def analyze_csv_file(csv_path: str, question: str = None, llm=None) -> Dict[str, Any]:
-    """Función principal: carga CSV, extrae metadata, y opcionalmente responde preguntas.
-    
-    Args:
-        csv_path: Ruta al archivo CSV
-        question: Pregunta opcional sobre los datos
-        llm: Instancia de LLM (si None, se crea una)
-    
-    Returns:
-        Dict con metadata, report, y respuesta (si pregunta se proporcionó)
-    """
-    df = load_csv_dataset(csv_path)
-    metadata = extract_dataset_metadata(df)
-    report = generate_dataset_report(df, metadata)
-    
-    result = {
-        "file": csv_path,
-        "shape": metadata["shape"],
-        "columns": metadata["columns"],
-        "metadata": metadata,
-        "report": report,
-    }
-    
-    if question:
-        result["question"] = question
-        result["answer"] = query_dataset_with_gemini(question, df, llm)
-    
-    return result
-
+# analyze_csv_file reemplazado por funciones modulares (load_csv_dataset, query_with_pandas_agent)
 
 # =============================================================================
 # LLM + Pandas Agent: consultas directamente sobre el DataFrame
@@ -353,23 +461,21 @@ def query_with_pandas_agent(question: str, df: pd.DataFrame, dangerous: bool = F
 
 
 if __name__ == "__main__":
-    # Prueba: analizar los CSVs disponibles
-    csv_files = [
-        "data/siniestros_1_limpio.csv",
-        "data/siniestros_2_limpio.csv",
-    ]
+    # Script de prueba: cargar CSV y mostrar estadísticas
+    import sys
     
-    for csv_path in csv_files:
-        if Path(csv_path).exists():
-            print(f"\n{'='*80}")
-            print(f"ANALIZANDO: {csv_path}")
-            print('='*80)
-            
-            result = analyze_csv_file(
-                csv_path,
-                question="¿Cuál es el tipo de siniestro más frecuente?",
-            )
-            
-            print(result["report"])
-            if "answer" in result:
-                print(f"\n💬 RESPUESTA A LA PREGUNTA:\n{result['answer']}\n")
+    csv_file = sys.argv[1] if len(sys.argv) > 1 else "data/siniestros_1_limpio.csv"
+    
+    try:
+        df = load_csv_dataset(csv_file)
+        print(f"\n✓ CSV cargado: {df.shape}")
+        
+        metadata = extract_dataset_metadata(df)
+        report = generate_dataset_report(df, metadata)
+        
+        print("\n" + "="*60)
+        print(report)
+        print("="*60)
+    except FileNotFoundError as e:
+        print(f"❌ Error: {e}")
+        sys.exit(1)

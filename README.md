@@ -57,18 +57,25 @@ Se abrirá en `http://localhost:8501`
 ```
 MinTic-proyecto/
 ├── app/
-│   └── streamlit_app.py          # Aplicación web
+│   └── streamlit_app.py              # Aplicación web (interfaz principal)
 ├── src/mintic_project/
-│   ├── langchain_integration.py   # OCR + Gemini
-│   ├── db_analysis.py             # Análisis CSV
-│   ├── unified_analyzer.py        # Análisis combinado
-│   └── main.py                    # CLI
+│   ├── langchain_integration.py       # OCR + Gemini + LLM config
+│   ├── db_analysis.py                 # Análisis CSV + Pandas Agent
+│   ├── data_loader.py                 # Descarga de datasets desde API
+│   └── unified_analyzer.py            # Análisis combinado (PDF + CSV + IA)
 ├── data/
-│   ├── Ley_769_de_2002.pdf       # Documento legal
-│   └── siniestros_1_limpio.csv   # Datos Palmira (2,834 registros)
-├── tests/                         # Tests
-├── docs/                          # Documentación
-└── RUN_STREAMLIT.ps1             # Script de inicio
+│   ├── Ley_769_de_2002.pdf           # Documento legal
+│   ├── siniestros_1_limpio.csv       # Datos Palmira (2,834 registros)
+│   ├── ocr_cache/                     # Caché de textos OCR
+│   └── *.txt                          # Reportes generados
+├── scripts/
+│   └── descargar_datos.py             # Script para actualizar datasets
+├── tests/                             # Tests unitarios
+├── docs/                              # Documentación del proyecto
+├── .env.example                       # Plantilla de variables de entorno
+├── requirements.txt                   # Dependencias Python
+├── RUN_STREAMLIT.ps1                 # Script para lanzar la app
+└── README.md                          # Este archivo
 ```
 
 ---
@@ -89,28 +96,24 @@ MinTic-proyecto/
 **Ejemplos de preguntas:**
 
 ```
-# Sobre PDF
-"¿Qué sanciones establece para conducir embriagado?"
-
-# Sobre datos
+# Análisis de Datos (CSV)
 "¿Cuál es el tipo de siniestro más frecuente?"
+"¿En qué jornada ocurren más siniestros?"
+"¿Cuántos choques hubo en 2023?"  (modo avanzado)
 
-# Combinadas
-"¿El CHOQUE es frecuente y qué dice la ley?"
+# Análisis de Documentos (PDF + OCR)
+"¿Qué sanciones establece para conducir embriagado?"
+"¿Cuáles son los requisitos para licencia?"
+
+# Análisis Unificado (PDF + Datos + IA)
+"¿El CHOQUE es frecuente y qué dice la ley al respecto?"
+"¿Cuáles son las causas legales y estadísticas más comunes?"
 ```
 
-### CLI (Opcional)
-
-```bash
-# Extraer texto
-python -m src.mintic_project.main extract --pdf data/Ley_769_de_2002.pdf
-
-# Hacer preguntas
-python -m src.mintic_project.main query --pdf data/Ley_769_de_2002.pdf --question "..."
-
-# Modo interactivo
-python -m src.mintic_project.main interactive --pdf data/Ley_769_de_2002.pdf
-```
+**Modos de Consulta:**
+- 🔧 **Modo Normal**: Análisis seguro sin ejecución de código
+- ⚡ **Modo Avanzado**: Ejecución directa con Pandas Agent (solo data CSV)
+- 📊 **Fallback**: Si falta dependencia, usa análisis textual automático
 
 ---
 
@@ -180,13 +183,18 @@ pytest --cov=src tests/         # Con coverage
 ## 📊 Datos
 
 **Fuentes:**
-- Ley 769 de 2002 (PDF) - Código Nacional de Tránsito
-- Siniestros viales en Palmira (CSV) - 2,834 registros de [datos.gov.co](https://datos.gov.co)
+- **Ley 769 de 2002** (PDF) - Código Nacional de Tránsito de Colombia
+- **Siniestros en Palmira** (CSV) - 2,834 registros de [datos.gov.co](https://datos.gov.co)
 
-**Actualizar datos:**
-```bash
+**Actualizar datos desde la app:**
+- Ir a Streamlit → barra lateral → expander "🔁 Datos" → botón "Actualizar datos"
+
+**Actualizar datos desde terminal:**
+```powershell
 python scripts/descargar_datos.py
 ```
+
+Esto descarga nuevos datasets y los limpia automáticamente.
 
 ---
 

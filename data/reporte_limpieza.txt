@@ -1,2 +1,0 @@
-Dataset 1 (Siniestros Viales): iniciales=2834, finales=2834, %=100.0
-Dataset 2 (Gravedad/Víctimas): iniciales=1609, finales=1609, %=100.0
