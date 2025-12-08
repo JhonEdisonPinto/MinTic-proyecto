@@ -830,7 +830,7 @@ def page_unified_analysis(modules):
         # ⚠️ ADVERTENCIA para datasets grandes
         if analyzer.df is not None:
             total_rows = len(analyzer.df)
-            if total_rows > 1000:
+            if total_rows > 3000:
                 st.warning(
                     f"⚠️ **Dataset grande detectado:** {total_rows:,} filas\n\n"
                     f"Para proteger tu API key de Gemini, el analizador usará automáticamente "
