@@ -724,6 +724,18 @@ def page_csv_analysis(modules):
 
     with tabs[2]:
         st.subheader("❓ Haz preguntas sobre los datos")
+        
+        # ⚠️ ADVERTENCIA para datasets grandes
+        total_rows = len(df)
+        if total_rows > 3000:
+            st.warning(
+                f"⚠️ **Dataset grande detectado:** {total_rows:,} filas\n\n"
+                f"Para proteger tu API key de Gemini, el agente usará automáticamente "
+                f"una **muestra representativa de 500 filas** en lugar del dataset completo.\n\n"
+                f"**Recomendación:** Haz preguntas específicas y evita consultas que requieran "
+                f"procesar todos los datos a la vez."
+            )
+        
         st.caption("El asistente puede analizar el DataFrame directamente usando operaciones de Pandas.")
 
         ejemplos_csv = [
@@ -814,6 +826,18 @@ def page_unified_analysis(modules):
         st.markdown(
             "La pregunta se responde combinando contexto legal + datos estadísticos + IA"
         )
+        
+        # ⚠️ ADVERTENCIA para datasets grandes
+        if analyzer.df is not None:
+            total_rows = len(analyzer.df)
+            if total_rows > 1000:
+                st.warning(
+                    f"⚠️ **Dataset grande detectado:** {total_rows:,} filas\n\n"
+                    f"Para proteger tu API key de Gemini, el analizador usará automáticamente "
+                    f"una **muestra representativa de 500 filas** en lugar del dataset completo.\n\n"
+                    f"**Recomendación:** Haz preguntas específicas y evita consultas que requieran "
+                    f"procesar todos los datos a la vez."
+                )
 
         ejemplos_unificado = [
             "¿Cuál es el tipo de siniestro más frecuente y qué dice la ley al respecto?",

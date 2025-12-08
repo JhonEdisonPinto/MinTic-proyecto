@@ -10,16 +10,16 @@ Write-Host ""
 $projectPath = "C:\Users\Jhon\Documents\GitHub\MinTic-proyecto"
 Set-Location $projectPath
 
-# Verificar que .venv existe
-if (-not (Test-Path ".venv")) {
-    Write-Host "❌ Entorno virtual no encontrado en .venv" -ForegroundColor Red
+# Verificar que venv_nuevo existe
+if (-not (Test-Path "venv_nuevo")) {
+    Write-Host "❌ Entorno virtual no encontrado en venv_nuevo" -ForegroundColor Red
     Write-Host "Por favor, crea el entorno virtual primero." -ForegroundColor Yellow
     exit 1
 }
 
 # Activar entorno virtual
 Write-Host "📦 Activando entorno virtual..." -ForegroundColor Yellow
-& ".\.venv\Scripts\Activate.ps1"
+& ".\venv_nuevo\Scripts\Activate.ps1"
 
 # Verificar que Streamlit está instalado (uso seguro de comillas)
 Write-Host "🔍 Verificando dependencias..." -ForegroundColor Yellow
@@ -55,5 +55,12 @@ Write-Host "🚀 Iniciando aplicación en http://localhost:8501" -ForegroundColo
 Write-Host "   (Presiona Ctrl+C para detener)" -ForegroundColor Gray
 Write-Host ""
 
+# Limpiar cache de Python
+Write-Host "Limpiando cache..." -ForegroundColor Yellow
+Get-ChildItem -Path src,app -Recurse -Filter "__pycache__" -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Path src,app -Recurse -Filter "*.pyc" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Write-Host "Cache limpiado correctamente" -ForegroundColor Green
+Write-Host ""
+
 # Ejecutar Streamlit
-streamlit run app/streamlit_app.py --logger.level=info
+streamlit run app/streamlit_app.py

@@ -292,16 +292,56 @@ def generate_dataset_report(df: pd.DataFrame, metadata: Optional[Dict] = None) -
 # =============================================================================
 # LLM + Pandas Agent: consultas directamente sobre el DataFrame
 # =============================================================================
+
+# Límites de protección para evitar exceder cuota de API
+MAX_ROWS_FOR_AGENT = 3000  # Máximo de filas para enviar al agente
+SAMPLE_SIZE = 500  # Tamaño de muestra si el DataFrame es muy grande
+
 def create_pandas_agent(df: pd.DataFrame, model: str = "gemini-2.5-flash", dangerous: bool = False):
     """Crear un agente de LangChain para consultar el DataFrame con Gemini.
 
     Parámetros:
-        df: DataFrame objetivo
-        model: nombre del modelo Gemini
+        df: DataFrame objetivo (será muestreado si es muy grande)
+        model: nombre del modelo Gemini (gemini-2.5-flash recomendado para API gratuita)
         dangerous: si True habilita `allow_dangerous_code` (ejecución arbitraria). Úsalo solo si confías en el entorno.
+    
+    PROTECCIÓN: Si el DataFrame tiene más de MAX_ROWS_FOR_AGENT filas, se usa una muestra representativa
+    para evitar exceder límites de tokens en Gemini y proteger tu API key.
 
     Si `dangerous=False` y el agente requiere ejecución insegura, se devuelve None y se usará un fallback seguro.
     """
+    # 🛡️ PROTECCIÓN: Muestrear si el DataFrame es muy grande
+    original_rows = len(df)
+    if original_rows > MAX_ROWS_FOR_AGENT:
+        logger.warning(f"⚠️ Dataset grande ({original_rows:,} filas). Usando muestra de {SAMPLE_SIZE} filas para proteger API.")
+        
+        # Muestreo estratificado si hay columnas categóricas
+        cat_cols = df.select_dtypes(include=['object']).columns
+        if len(cat_cols) > 0 and cat_cols[0] in df.columns:
+            try:
+                # Intentar muestreo estratificado por la primera columna categórica
+                col = cat_cols[0]
+                n_categories = df[col].nunique()
+                samples_per_category = max(1, SAMPLE_SIZE // n_categories)  # Al menos 1 por categoría
+                
+                df = df.groupby(col, group_keys=False).apply(
+                    lambda x: x.sample(n=min(len(x), samples_per_category), random_state=42)
+                ).reset_index(drop=True)
+                
+                # Si quedó con más filas de lo esperado, reducir
+                if len(df) > SAMPLE_SIZE:
+                    df = df.sample(n=SAMPLE_SIZE, random_state=42).reset_index(drop=True)
+                    
+            except Exception as e:
+                logger.warning(f"Muestreo estratificado falló ({e}), usando aleatorio simple")
+                # Si falla, usar muestreo aleatorio simple
+                df = df.sample(n=min(SAMPLE_SIZE, len(df)), random_state=42).reset_index(drop=True)
+        else:
+            # Muestreo aleatorio simple
+            df = df.sample(n=min(SAMPLE_SIZE, len(df)), random_state=42).reset_index(drop=True)
+        
+        logger.info(f"✓ Muestra creada: {len(df):,} filas (representa {len(df)/original_rows*100:.1f}% del total)")
+    
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
     except ImportError as e:
