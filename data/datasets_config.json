@@ -4,6 +4,6 @@
     "siniestros_palmira_2021": "https://www.datos.gov.co/resource/xx6f-f84h.json",
     "Barranquilla": "https://www.datos.gov.co/resource/y628-5q9a.json"
   },
-  "active_dataset": "Barranquilla",
-  "last_updated": "2025-12-08T08:45:25.320968"
+  "active_dataset": "siniestros_palmira_2022-2024",
+  "last_updated": "2025-12-08T09:26:57.529729"
 }
