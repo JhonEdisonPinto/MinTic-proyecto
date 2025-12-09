@@ -1141,7 +1141,7 @@ def page_reports(modules):
         st.markdown("Este informe se usa mediante 'Publish to web' (público).")
 
         # URL por defecto (el usuario puede cambiarla luego si lo desea)
-        embed_url = "https://app.powerbi.com/view?r=eyJrIjoiNWI0N2ZjYzEtNDg3Yy00MWJkLWExNDMtYzQ5MWJjZjFmNWJjIiwidCI6IjU3N2ZjMWQ4LTA5MjItNDU4ZS04N2JmLWVjNGY0NTVlYjYwMCIsImMiOjR9"
+        embed_url = "https://app.powerbi.com/view?r=eyJrIjoiYjM4MGMyYmQtNmU3MS00OWY5LTk3NTYtYzliZDlmZTg5ODI1IiwidCI6IjU3N2ZjMWQ4LTA5MjItNDU4ZS04N2JmLWVjNGY0NTVlYjYwMCIsImMiOjR9"
 
         import streamlit.components.v1 as components
 
