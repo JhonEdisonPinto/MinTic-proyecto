@@ -1,6 +1,6 @@
 # Diapositivas
 
-[🔗 Presentación Pitch](https://drive.google.com/file/d/1EmVHZfDlMHsIDNmyS4xBBN4PT_Grehjz/view?usp=sharing)
+[🔗 Presentación Pitch](https://drive.google.com/file/d/1vc5ONKGYHzkl9nCj9sVe_c8mFEra_U2w/view?usp=sharing)
 
 ---
 
